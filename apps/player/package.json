@@ -1,7 +1,7 @@
 {
   "name": "@vertice/player",
   "productName": "Vértice Player",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "description": "Player do Vértice para TV Box, Smart TV Android, Windows e Linux",
   "vertice": {
