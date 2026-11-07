@@ -106,7 +106,7 @@ jobs:
         shell: bash
         env:
           PLAYER_ENV: ${{ secrets.PLAYER_ENV }}
-        run: printf '%s\n' "$PLAYER_ENV" > apps/player/.env
+        run: printf '%s\n' "$PLAYER_ENV" | tr -d '\r' > apps/player/.env
 
       - run: npm ci
 
@@ -143,22 +143,29 @@ jobs:
           PLAYER_ENV: ${{ secrets.PLAYER_ENV }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          printf '%s\n' "$PLAYER_ENV" > apps/player/.env
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > apps/player/android/app/vertice-debug.keystore
+          # Texto copiado no Windows (Set-Clipboard) chega com \r e quebra de linha no fim: tira antes de usar.
+          printf '%s\n' "$PLAYER_ENV" | tr -d '\r' > apps/player/.env
+          grep -q '^VITE_' apps/player/.env || { echo "::error::O secret PLAYER_ENV não tem as linhas VITE_ do apps/player/.env."; exit 1; }
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -d > apps/player/android/app/vertice-debug.keystore \
+            || { echo "::error::O secret ANDROID_KEYSTORE_BASE64 não é um base64 válido. Gere de novo a partir do vertice-debug.keystore."; exit 1; }
+          keytool -list -keystore apps/player/android/app/vertice-debug.keystore -storepass android -alias androiddebugkey > /dev/null \
+            || { echo "::error::A chave do APK (ANDROID_KEYSTORE_BASE64) não abre com a senha/apelido esperados (android / androiddebugkey)."; exit 1; }
 
       - run: npm ci
 
       - name: Android SDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null \
+            || { echo "::error::Não consegui instalar o Android SDK 36 no runner."; exit 1; }
 
       - name: Gerar o APK
         working-directory: apps/player
         run: |
-          npx vite build
-          npx cap sync android
+          npx vite build || { echo "::error::O build do player (vite) falhou."; exit 1; }
+          npx cap sync android || { echo "::error::cap sync android falhou."; exit 1; }
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon || { echo "::error::O Gradle não gerou o APK (ver o log do passo Gerar o APK)."; exit 1; }
 
       - name: Juntar os arquivos
         run: |
