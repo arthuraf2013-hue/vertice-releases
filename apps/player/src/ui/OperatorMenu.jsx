@@ -147,7 +147,7 @@ function MenuPanel({ state, updater, remote, onClose }) {
   const [diag, setDiag] = useState(null);
   const [testando, setTestando] = useState(false);
   const [aviso, setAviso] = useState('');
-  const [janela, setJanela] = useState({ fullscreen: true });
+  const [janela, setJanela] = useState({ fullscreen: true, monitores: 1 });
   const [confirmarSaida, setConfirmarSaida] = useState(false);
 
   useEffect(() => (updater ? updater.subscribe(setUpd) : undefined), [updater]);
@@ -224,6 +224,7 @@ function MenuPanel({ state, updater, remote, onClose }) {
               {can.window && (janela.fullscreen
                 ? <button type="button" className="vx-op-btn" onClick={() => executar(() => host.setFullscreen(false))}>Sair da tela cheia</button>
                 : <button type="button" className="vx-op-btn" onClick={() => executar(() => host.setFullscreen(true))}>Voltar à tela cheia</button>)}
+              {can.window && janela.monitores > 1 && <button type="button" className="vx-op-btn" onClick={() => executar(() => host.nextMonitor(), 'Trocando de monitor…')}>Trocar de monitor</button>}
               {can.minimize && <button type="button" className="vx-op-btn" onClick={() => executar(() => host.minimize())}>Minimizar</button>}
               {can.otherLauncher && <button type="button" className="vx-op-btn" onClick={() => executar(() => host.otherLauncher())}>Abrir outra tela inicial</button>}
               {can.quit && (

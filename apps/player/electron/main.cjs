@@ -14,9 +14,12 @@
 //
 // Atualização automática: ver electron/updater.cjs (instala em silêncio quando sai versão nova).
 //
+// Janela: abre no mesmo monitor, posição e tamanho da última vez, em tela cheia ou em janela
+// como estava (electron/janela.cjs). Fora da tela cheia tem barra de título para arrastar.
+//
 // Parâmetros: --janela abre em janela (bom para testar no seu PC).
 // Configuração: vertice.config.json (ao lado do .exe ou em %APPDATA%\\Vértice Player).
-const { app, BrowserWindow, protocol, net, powerSaveBlocker, ipcMain, session, shell } = require('electron');
+const { app, BrowserWindow, protocol, net, powerSaveBlocker, ipcMain, session, shell, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -25,6 +28,7 @@ const { Readable } = require('node:stream');
 const { pathToFileURL } = require('node:url');
 const { loadDesktopConfig, configArg } = require('./desktop-config.cjs');
 const { createUpdater } = require('./updater.cjs');
+const { escolherPosicao, proximoMonitor, centralizar, lerEstado, lembrarJanela } = require('./janela.cjs');
 const pkg = require('../package.json');
 
 const DEV_URL = process.env.VERTICE_DEV_URL;
@@ -54,6 +58,10 @@ const SAFE_NAME = /^[A-Za-z0-9_-]{1,80}\.[A-Za-z0-9]{1,8}$/;
 let win = null;
 let config = {};
 let updater = null;
+let salvarJanela = () => {};
+
+const ARQUIVO_JANELA = () => path.join(app.getPath('userData'), 'janela.json');
+const monitores = () => screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds, workArea: d.workArea }));
 
 function deviceInfo() {
   return {
@@ -66,12 +74,18 @@ function deviceInfo() {
 }
 
 function createWindow() {
+  const pos = escolherPosicao(lerEstado(ARQUIVO_JANELA()), monitores(), screen.getPrimaryDisplay());
+  const cheia = pos.fullscreen && !WINDOWED;
   win = new BrowserWindow({
-    width: 1280,
-    height: 720,
-    fullscreen: !WINDOWED,
-    kiosk: !WINDOWED,
-    frame: WINDOWED,
+    // A janela nasce no lugar salvo; a tela cheia vai para o monitor onde ela está.
+    x: pos.x,
+    y: pos.y,
+    width: pos.width,
+    height: pos.height,
+    fullscreen: cheia,
+    kiosk: cheia,
+    // Em tela cheia o Windows esconde a barra; em janela ela aparece para arrastar, minimizar e fechar.
+    frame: true,
     autoHideMenuBar: true,
     backgroundColor: '#0b1017',
     title: 'Vértice Player',
@@ -86,7 +100,9 @@ function createWindow() {
     },
   });
   win.setMenu(null);
+  if (pos.maximized && !cheia) win.maximize();
   win.once('ready-to-show', () => win.show());
+  salvarJanela = lembrarJanela(win, screen, ARQUIVO_JANELA());
 
   // Nada de abrir janelas nem sair do player.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -130,8 +146,31 @@ function setTelaCheia(cheia) {
   avisarJanela();
 }
 
+function estadoJanela() {
+  if (!win || win.isDestroyed()) return { fullscreen: true, monitores: 1 };
+  return { fullscreen: win.isKiosk() || win.isFullScreen(), monitores: screen.getAllDisplays().length };
+}
+
 function avisarJanela() {
-  if (win && !win.isDestroyed()) win.webContents.send('vx:janela', { fullscreen: win.isKiosk() || win.isFullScreen() });
+  if (win && !win.isDestroyed()) win.webContents.send('vx:janela', estadoJanela());
+}
+
+/** Leva o player para o próximo monitor, mantendo tela cheia ou janela. */
+function trocarMonitor() {
+  if (!win || win.isDestroyed()) return false;
+  const lista = monitores();
+  const alvo = proximoMonitor(lista, screen.getDisplayMatching(win.getBounds()).id);
+  if (!alvo) return false;
+  const cheia = win.isKiosk() || win.isFullScreen();
+  if (cheia) {
+    win.setKiosk(false);
+    win.setFullScreen(false);
+  }
+  if (win.isMaximized()) win.unmaximize();
+  win.setBounds(centralizar(win.getNormalBounds(), alvo.workArea));
+  if (cheia) setTelaCheia(true);
+  salvarJanela();
+  return true;
 }
 
 // Só estes endereços do Windows podem ser abertos pelo menu (nada de URL vinda da página).
@@ -150,6 +189,7 @@ ipcMain.handle('vx:app', (_e, acao) => {
   if (!win || win.isDestroyed()) return false;
   if (acao === 'reload') win.webContents.reloadIgnoringCache();
   else if (acao === 'restart') {
+    salvarJanela(); // app.exit não passa pelo evento de fechar
     app.relaunch();
     app.exit(0);
   } else if (acao === 'quit') app.quit();
@@ -159,11 +199,12 @@ ipcMain.handle('vx:app', (_e, acao) => {
     win.minimize();
   } else if (acao === 'window') setTelaCheia(false);
   else if (acao === 'fullscreen') setTelaCheia(true);
+  else if (acao === 'monitor') return trocarMonitor();
   else return false;
   return true;
 });
 
-ipcMain.handle('vx:janela', () => ({ fullscreen: !!win && !win.isDestroyed() && (win.isKiosk() || win.isFullScreen()) }));
+ipcMain.handle('vx:janela', () => estadoJanela());
 
 ipcMain.handle('vx:settings', async (_e, chave) => {
   const alvo = CONFIG_WINDOWS[chave];
@@ -338,6 +379,9 @@ app.whenReady().then(() => {
 
   config = loadDesktopConfig(app);
   createWindow();
+  // Ligou/desligou um monitor: o menu mostra ou esconde "Trocar de monitor".
+  screen.on('display-added', avisarJanela);
+  screen.on('display-removed', avisarJanela);
 
   updater = createUpdater({
     url: config.updateUrl || pkg.vertice?.updateUrl,

@@ -97,6 +97,11 @@ No painel, em Telas › (tela) › **Controle remoto**: identificar a TV, ver um
 atualizar agora, abrir o menu na TV e ver o diagnóstico. Os comandos ficam em `screens/{id}/live/*` (regras em
 `firebase/firestore.rules`) e precisam do player 0.3.0 ou mais novo.
 
+No Windows o player reabre no mesmo monitor, posição e tamanho da última vez, em tela cheia ou em janela como
+estava (`%APPDATA%\Vértice Player\janela.json`; lógica em `apps/player/electron/janela.cjs`). Fora da tela cheia a
+janela tem barra de título para arrastar. Com mais de um monitor, o menu mostra **Trocar de monitor**. Se o
+monitor salvo não estiver ligado, abre centralizado no principal.
+
 ## Planos
 
 Contas novas nascem no plano **Start** (3 telas, 2 GB). Plano, limite de telas e cota só mudam pela Vetta, direto no Firestore (`companies/{id}`: `plan`, `screenLimit`, `storageQuotaMB`). As regras impedem o cliente de mudar esses campos.
