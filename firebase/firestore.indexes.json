@@ -1,0 +1,20 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "manifests",
+      "fieldPath": "slots",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "manifests",
+      "fieldPath": "assets",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "manifests",
+      "fieldPath": "fallback",
+      "indexes": []
+    }
+  ]
+}

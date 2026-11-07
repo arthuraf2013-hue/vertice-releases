@@ -1,0 +1,210 @@
+name: Vértice Player — publicar versão nova
+
+# Como lançar: faça um commit cuja mensagem comece com "release:" (ex.: "release: menu do
+# operador") e dê push na main. Este workflow então:
+#   1. roda os testes e sobe a versão do player (0.3.1 → 0.3.2) num commit "[skip release]";
+#   2. gera o instalador do Windows (no Windows) e o APK + o pacote de conteúdo (no Linux);
+#   3. publica tudo numa release do GitHub com o player-update.json.
+# As TVs leem o player-update.json da última release e se atualizam sozinhas:
+#   - Windows: baixa o instalador e instala em silêncio;
+#   - Android: o conteúdo novo entra sem reinstalar; o APK só é reinstalado quando a parte
+#     nativa mudou (scripts/player-manifest.mjs decide isso comparando com a versão anterior).
+#
+# Configuração única (Settings › Secrets and variables › Actions › New repository secret):
+#   PLAYER_ENV              conteúdo inteiro do arquivo apps/player/.env (config do Firebase)
+#   ANDROID_KEYSTORE_BASE64 apps/player/android/app/vertice-debug.keystore em base64
+#     (a MESMA chave assina todas as versões; sem ela o Android não aceita a atualização)
+# O repositório precisa ser público para as TVs baixarem sem senha.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: player-release
+  cancel-in-progress: false
+
+jobs:
+  versao:
+    name: Testes e versão
+    if: github.event_name == 'workflow_dispatch' || (startsWith(github.event.head_commit.message, 'release:') && !contains(github.event.head_commit.message, '[skip release]'))
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versao.outputs.version }}
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Conferir os segredos
+        env:
+          PLAYER_ENV: ${{ secrets.PLAYER_ENV }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$PLAYER_ENV" ]; then echo "::error::Falta o secret PLAYER_ENV (conteúdo do apps/player/.env)."; exit 1; fi
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then echo "::error::Falta o secret ANDROID_KEYSTORE_BASE64 (chave do APK)."; exit 1; fi
+
+      - run: npm ci
+
+      - name: Testes (regras de versão e atualização)
+        run: |
+          npm test
+          node --test apps/player/electron/updater.test.cjs
+
+      - name: Testes das regras do Firestore
+        run: npx firebase emulators:exec --only firestore --project demo-vertice "node --test firebase/tests/rules.test.mjs"
+
+      - name: Subir a versão do player
+        id: versao
+        run: node scripts/player-version.mjs bump >> "$GITHUB_OUTPUT"
+
+      - name: Commit e tag da versão
+        id: commit
+        run: |
+          V="${{ steps.versao.outputs.version }}"
+          git config user.name "vertice-bot"
+          git config user.email "actions@github.com"
+          git add apps/player/package.json package-lock.json apps/player/android/app/build.gradle
+          git commit -m "chore(release): player v$V [skip release]"
+          # Alguém deu push enquanto os testes rodavam: põe o commit da versão por cima.
+          git pull --rebase origin main
+          git tag "v$V"
+          git push origin HEAD:main
+          git push origin "v$V"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  windows:
+    name: Instalador do Windows
+    needs: versao
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.versao.outputs.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Configuração do Firebase
+        shell: bash
+        env:
+          PLAYER_ENV: ${{ secrets.PLAYER_ENV }}
+        run: printf '%s\n' "$PLAYER_ENV" > apps/player/.env
+
+      - run: npm ci
+
+      - name: Gerar o instalador
+        run: npm run electron:build -w @vertice/player
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: apps/player/release/Vertice-Player-Setup-${{ needs.versao.outputs.version }}.exe
+          if-no-files-found: error
+
+  android:
+    name: APK e pacote de conteúdo
+    needs: versao
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.versao.outputs.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Configuração do Firebase e chave do APK
+        env:
+          PLAYER_ENV: ${{ secrets.PLAYER_ENV }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          printf '%s\n' "$PLAYER_ENV" > apps/player/.env
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > apps/player/android/app/vertice-debug.keystore
+
+      - run: npm ci
+
+      - name: Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+
+      - name: Gerar o APK
+        working-directory: apps/player
+        run: |
+          npx vite build
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Juntar os arquivos
+        run: |
+          V="${{ needs.versao.outputs.version }}"
+          mkdir -p out
+          cp apps/player/android/app/build/outputs/apk/debug/app-debug.apk "out/Vertice-Player-$V.apk"
+          # O pacote de conteúdo é exatamente o que vai dentro do APK (assets/public).
+          (cd apps/player/android/app/src/main/assets/public && zip -qr -X "$GITHUB_WORKSPACE/out/vertice-player-web-$V.zip" .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*
+          if-no-files-found: error
+
+  publicar:
+    name: Publicar a release
+    needs: [versao, windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.versao.outputs.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
+
+      - name: Manifesto de atualização
+        env:
+          NOTAS: ${{ github.event.head_commit.message }}
+        run: |
+          V="${{ needs.versao.outputs.version }}"
+          # Manifesto da versão anterior: decide se o APK precisa ser reinstalado.
+          curl -fsSL -o anterior.json "https://github.com/${{ github.repository }}/releases/latest/download/player-update.json" || rm -f anterior.json
+          node scripts/player-manifest.mjs "$V" dist-release "${{ github.repository }}" "$NOTAS" anterior.json
+
+      - name: Criar a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTAS: ${{ github.event.head_commit.message }}
+        run: |
+          V="${{ needs.versao.outputs.version }}"
+          gh release create "v$V" dist-release/* --title "Vértice Player $V" --notes "${NOTAS:-Versão $V}" --latest

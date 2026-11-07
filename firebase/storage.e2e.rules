@@ -1,0 +1,14 @@
+rules_version = '2';
+// SÓ PARA O TESTE PONTA A PONTA. Igual a storage.rules, sem a consulta ao Firestore
+// (o emulador do Storage não consegue consultar o Firestore atrás de proxy HTTP).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /companies/{cid}/media/{file} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.resource.size < 500 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)|video/(mp4|webm)');
+      allow delete: if request.auth != null;
+    }
+  }
+}

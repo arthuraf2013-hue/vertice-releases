@@ -1,0 +1,81 @@
+{
+  "name": "@vertice/player",
+  "productName": "Vértice Player",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Player do Vértice para TV Box, Smart TV Android, Windows e Linux",
+  "vertice": {
+    "updateUrl": "https://github.com/arthuraf2013-hue/vertice-releases/releases/latest/download/player-update.json",
+    "minNativeVersion": "0.3.0"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "preview": "vite preview --port 5174",
+    "android:sync": "vite build && cap sync android",
+    "android:open": "cap open android",
+    "android:apk": "vite build && cap sync android && node ../../scripts/gradle.mjs assembleDebug",
+    "electron:dev": "cross-env VERTICE_DEV_URL=http://localhost:5174 electron .",
+    "electron:start": "vite build && electron . --janela",
+    "electron:build": "vite build && electron-builder --win --publish never"
+  },
+  "dependencies": {
+    "@capacitor-community/keep-awake": "^8.0.1",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/device": "^8.0.3",
+    "@capacitor/file-transfer": "^2.0.6",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/network": "^8.0.1",
+    "@vertice/shared": "*",
+    "firebase": "^13.2.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "vite": "^8.3.6",
+    "cross-env": "^10.0.0",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "main": "electron/main.cjs",
+  "author": "Vetta Sistemas",
+  "build": {
+    "appId": "br.com.vettasistemas.vertice.player",
+    "productName": "Vértice Player",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Vertice-Player-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Vértice Player"
+    },
+    "electronVersion": "45.2.3",
+    "publish": null
+  }
+}

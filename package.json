@@ -1,0 +1,35 @@
+{
+  "name": "vertice",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Vértice — digital signage da Vetta Sistemas",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "servers/*"
+  ],
+  "scripts": {
+    "dev:panel": "npm run dev -w @vertice/panel",
+    "dev:panel:demo": "npm run dev:demo -w @vertice/panel",
+    "dev:player": "npm run dev -w @vertice/player",
+    "emulators": "firebase emulators:start --only auth,firestore --project demo-vertice",
+    "build": "npm run build -w @vertice/panel && npm run build -w @vertice/player",
+    "build:hosting": "npm run build && node scripts/build-hosting.mjs",
+    "test": "npm run test -w @vertice/shared",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-vertice \"node --test firebase/tests/rules.test.mjs\"",
+    "e2e": "node scripts/e2e.mjs",
+    "deploy:rules": "firebase deploy --only firestore",
+    "deploy:hosting": "npm run build:hosting && firebase deploy --only hosting",
+    "win:painel": "npm run electron:build -w @vertice/panel",
+    "win:player": "npm run electron:build -w @vertice/player",
+    "apk": "npm run android:apk -w @vertice/player",
+    "midias": "npm start -w @vertice/media-server"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase-tools": "^15.35.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

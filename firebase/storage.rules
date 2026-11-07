@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Mídias ficam em companies/{cid}/media/{id}.{ext}.
+// As TVs baixam pela URL com token (gerada no upload), então não precisam de regra de leitura.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function role(cid) {
+      return firestore.get(/databases/(default)/documents/companies/$(cid)/members/$(request.auth.uid)).data.role;
+    }
+    match /companies/{cid}/media/{file} {
+      allow read: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/companies/$(cid)/members/$(request.auth.uid));
+      allow create, update: if request.auth != null
+        && role(cid) in ['editor', 'admin', 'owner']
+        && request.resource.size < 500 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)|video/(mp4|webm)');
+      allow delete: if request.auth != null && role(cid) in ['editor', 'admin', 'owner'];
+    }
+  }
+}

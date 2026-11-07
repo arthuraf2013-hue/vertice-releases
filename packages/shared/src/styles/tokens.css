@@ -1,0 +1,89 @@
+/* Vértice — tokens do design system v1 (gerado de tokens.json).
+   Tema claro "Painel claro" é o padrão; [data-theme="dark"] é a "Sala de controle". */
+:root {
+  --vetta-slate: #34445e;
+  --vetta-navy: #293548;
+  --vetta-night: #141b26;
+  --vetta-gold: #d9a84e;
+
+  --bg-page: #f4f6f9;
+  --bg-card: #ffffff;
+  --bg-sunken: #eef1f5;
+  --bg-selected: #fbf4e6;
+  --line-soft: #e3e8ee;
+  --line-strong: #8795a8;
+  --ink: #141b26;
+  --ink-muted: #4b5a70;
+  --ink-faint: #5f6e84;
+  --primary: #293548;
+  --primary-hover: #34445e;
+  --on-primary: #ffffff;
+  --accent: #8a5f12;
+  --accent-soft: #f8efdc;
+  --focus: #8a5f12;
+  --status-online: #11724f;
+  --status-online-soft: #e2f3ec;
+  --status-warn: #b4470c;
+  --status-warn-soft: #fcefdf;
+  --status-offline: #9b1c1c;
+  --status-offline-soft: #fbe7e5;
+  --status-sync: #2d64a8;
+  --status-sync-soft: #e5eefa;
+  --data-1: #34445e;
+  --data-2: #a87a22;
+  --data-3: #7d93b2;
+  --shadow-card: 0 1px 2px rgba(20, 27, 38, 0.06);
+  --shadow-pop: 0 12px 32px rgba(20, 27, 38, 0.14);
+
+  --font-display: "Sora", "Manrope", system-ui, sans-serif;
+  --font-sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg-page: #0b1017;
+  --bg-card: #141b26;
+  --bg-sunken: #1b2431;
+  --bg-selected: #2a2416;
+  --line-soft: #232d3b;
+  --line-strong: #5a6a82;
+  --ink: #eef2f7;
+  --ink-muted: #a3b2c6;
+  --ink-faint: #8796ab;
+  --primary: #d9a84e;
+  --primary-hover: #e6bc6c;
+  --on-primary: #141b26;
+  --accent: #e2b765;
+  --accent-soft: #2b2416;
+  --focus: #e2b765;
+  --status-online: #4cc79a;
+  --status-online-soft: #12291f;
+  --status-warn: #ffa95e;
+  --status-warn-soft: #2e1c12;
+  --status-offline: #e8564b;
+  --status-offline-soft: #321918;
+  --status-sync: #7fb0ee;
+  --status-sync-soft: #15233a;
+  --data-1: #8fa3c0;
+  --data-2: #d9a84e;
+  --data-3: #5d7395;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@vertice/media-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servidor de mídias do Vértice (upload pelo painel, download pelas TVs)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

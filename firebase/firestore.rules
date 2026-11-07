@@ -1,0 +1,198 @@
+rules_version = '2';
+
+// Vértice — regras do Firestore.
+// Três tipos de quem acessa:
+//  1. Pessoas do painel: membros da empresa, com papel viewer < editor < admin < owner.
+//  2. TVs: usuário anônimo pareado por código (devices/{uid}, kind "screen").
+//  3. Integrações (GerenciaAI): usuário anônimo pareado por código (kind "integration").
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function memberDoc(cid) { return /databases/$(database)/documents/companies/$(cid)/members/$(uid()); }
+    function isMember(cid) { return signedIn() && exists(memberDoc(cid)); }
+    function rank(r) { return r == 'owner' ? 3 : (r == 'admin' ? 2 : (r == 'editor' ? 1 : 0)); }
+    function hasRole(cid, min) { return isMember(cid) && rank(get(memberDoc(cid)).data.role) >= rank(min); }
+
+    function deviceDoc() { return /databases/$(database)/documents/devices/$(uid()); }
+    function isDevice(cid) { return signedIn() && exists(deviceDoc()) && get(deviceDoc()).data.companyId == cid; }
+    function isScreen(cid, sid) { return isDevice(cid) && get(deviceDoc()).data.kind == 'screen' && get(deviceDoc()).data.targetId == sid; }
+    function isAnyScreen(cid) { return isDevice(cid) && get(deviceDoc()).data.kind == 'screen'; }
+    function isIntegration(cid) { return isDevice(cid) && get(deviceDoc()).data.kind == 'integration'; }
+
+    function changesOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function authEmail() { return request.auth.token.email.lower(); }
+
+    // ---------- Perfil: liga o usuário à empresa ----------
+    match /users/{userId} {
+      allow get: if signedIn() && uid() == userId;
+      // Só cria o próprio perfil, e só se o vínculo de membro existir ao fim do mesmo lote.
+      allow create: if signedIn() && uid() == userId
+        && existsAfter(/databases/$(database)/documents/companies/$(request.resource.data.companyId)/members/$(uid()));
+      allow delete: if hasRole(resource.data.companyId, 'owner');
+    }
+
+    // ---------- Convites (id = e-mail em minúsculas) ----------
+    match /invites/{email} {
+      allow get: if signedIn() && (authEmail() == email || hasRole(resource.data.companyId, 'admin'));
+      allow list: if hasRole(resource.data.companyId, 'admin');
+      allow create, update: if hasRole(request.resource.data.companyId, 'admin')
+        && request.resource.data.role in ['viewer', 'editor', 'admin'];
+      allow delete: if signedIn() && (authEmail() == email || hasRole(resource.data.companyId, 'admin'));
+    }
+
+    // ---------- Pareamento por código ----------
+    match /pairings/{code} {
+      // Quem tem o código pode ler (é o que o painel digita). Listar, nunca.
+      allow get: if signedIn();
+      // A TV/integração cria o próprio código. Se o código já existe, isto vira "update"
+      // e é recusado: a TV tenta outro.
+      allow create: if signedIn()
+        && request.resource.data.uid == uid()
+        && request.resource.data.code == code
+        && code.size() == 6
+        && request.resource.data.claimed == false
+        && request.resource.data.kind in ['screen', 'integration']
+        && request.resource.data.expiresAt <= request.time + duration.value(31, 'm');
+      // Um admin da empresa reivindica um código válido.
+      allow update: if resource.data.claimed == false
+        && resource.data.expiresAt > request.time
+        && request.resource.data.claimed == true
+        && hasRole(request.resource.data.companyId, 'admin')
+        && changesOnly(['claimed', 'companyId', 'targetId', 'companyName', 'claimedAt']);
+      allow delete: if signedIn() && resource.data.uid == uid();
+    }
+
+    // ---------- Aparelhos pareados ----------
+    match /devices/{deviceUid} {
+      allow get: if signedIn() && (uid() == deviceUid || hasRole(resource.data.companyId, 'admin'));
+      // Só nasce junto com a reivindicação de um código daquele mesmo aparelho.
+      allow create: if hasRole(request.resource.data.companyId, 'admin')
+        && request.resource.data.kind in ['screen', 'integration']
+        && getAfter(/databases/$(database)/documents/pairings/$(request.resource.data.pairingCode)).data.uid == deviceUid
+        && getAfter(/databases/$(database)/documents/pairings/$(request.resource.data.pairingCode)).data.companyId == request.resource.data.companyId
+        && getAfter(/databases/$(database)/documents/pairings/$(request.resource.data.pairingCode)).data.kind == request.resource.data.kind;
+      allow delete: if hasRole(resource.data.companyId, 'admin');
+    }
+
+    // ---------- Empresa ----------
+    match /companies/{cid} {
+      allow get: if isMember(cid);
+      // Toda conta nova começa no plano Start. Plano, limite e cota só mudam pela Vetta (Admin SDK/console).
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == uid()
+        && request.resource.data.plan == 'start'
+        && request.resource.data.screenLimit == 3
+        && request.resource.data.storageQuotaMB == 2048
+        && request.resource.data.storageUsedBytes == 0
+        && request.resource.data.screenSeq == 0;
+      allow update: if (hasRole(cid, 'admin') && changesOnly(['name', 'cnpj', 'phone', 'city', 'screenSeq']))
+        || (hasRole(cid, 'editor') && changesOnly(['storageUsedBytes']));
+
+      match /members/{memberUid} {
+        allow read: if isMember(cid);
+        allow create: if signedIn() && memberUid == uid() && (
+          // Dono criando a própria empresa no mesmo lote.
+          (request.resource.data.role == 'owner' && getAfter(/databases/$(database)/documents/companies/$(cid)).data.ownerUid == uid())
+          // Ou aceitando um convite desta empresa, com o papel do convite.
+          || (exists(/databases/$(database)/documents/invites/$(authEmail()))
+              && get(/databases/$(database)/documents/invites/$(authEmail())).data.companyId == cid
+              && get(/databases/$(database)/documents/invites/$(authEmail())).data.role == request.resource.data.role)
+        );
+        allow update: if hasRole(cid, 'owner') && memberUid != uid()
+          && request.resource.data.role in ['viewer', 'editor', 'admin'] && changesOnly(['role']);
+        allow delete: if hasRole(cid, 'owner') && memberUid != uid();
+      }
+
+      match /units/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'admin');
+      }
+      match /groups/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'admin');
+      }
+      match /media/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+      match /playlists/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+      match /schedules/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
+      // O que cada TV toca, compilado pelo painel. A TV lê só o dela.
+      match /manifests/{sid} {
+        allow read: if isMember(cid) || isScreen(cid, sid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
+      match /screens/{sid} {
+        allow read: if isMember(cid) || isScreen(cid, sid);
+        allow create, delete: if hasRole(cid, 'admin');
+        // A TV só atualiza o próprio sinal de vida, com o horário do servidor.
+        allow update: if hasRole(cid, 'admin')
+          || (isScreen(cid, sid)
+              && changesOnly(['lastSeen', 'appVersion', 'platform', 'model', 'resolution', 'nowPlaying', 'syncState'])
+              && request.resource.data.lastSeen == request.time);
+
+        // Controle remoto: o painel manda um comando (live/command); a TV responde com o
+        // diagnóstico (live/diagnostics, com a resposta em "ack") e a foto da tela (live/screenshot).
+        match /live/{name} {
+          function d() { return request.resource.data; }
+          allow read: if isMember(cid) || isScreen(cid, sid);
+          allow create, update: if (
+              name == 'command' && hasRole(cid, 'admin')
+              && d().keys().hasOnly(['id', 'type', 'at', 'by'])
+              && d().id is string && d().id.size() <= 40
+              && d().type in ['identify', 'menu', 'reload', 'restart', 'update', 'screenshot', 'diagnostics']
+              && d().at == request.time
+            ) || (
+              name == 'diagnostics' && isScreen(cid, sid)
+              && d().keys().hasOnly(['at', 'appVersion', 'nativeVersion', 'shell', 'platform', 'model', 'resolution',
+                                     'uptimeMin', 'online', 'networkType', 'latency', 'storage', 'sync', 'phase',
+                                     'update', 'errors', 'ack'])
+              && d().at == request.time
+            ) || (
+              name == 'screenshot' && isScreen(cid, sid)
+              && d().keys().hasOnly(['at', 'image'])
+              && d().image is string && d().image.size() < 900000 && d().image.matches('data:image/jpeg;base64,.*')
+              && d().at == request.time
+            );
+          allow delete: if hasRole(cid, 'admin');
+        }
+      }
+
+      match /integrations/{iid} {
+        allow read: if isMember(cid) || (isIntegration(cid) && iid == uid());
+        allow create, delete: if hasRole(cid, 'admin');
+        allow update: if hasRole(cid, 'admin')
+          || (isIntegration(cid) && iid == uid() && changesOnly(['lastSeen', 'appVersion', 'terminal'])
+              && request.resource.data.lastSeen == request.time);
+      }
+
+      // Pedidos enviados pelo GerenciaAI. Id = "{uidDaIntegração}_{idDaVenda}" (idempotente).
+      match /orders/{oid} {
+        function validOrder() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['number', 'customerName', 'status', 'unitId', 'source', 'terminal',
+                                   'createdAt', 'readyAt', 'deliveredAt', 'updatedAt', 'expireAt', 'integrationUid'])
+            && d.integrationUid == uid()
+            && d.number is string && d.number.size() > 0 && d.number.size() <= 12
+            && (d.get('customerName', null) == null || (d.customerName is string && d.customerName.size() <= 80))
+            && d.status in ['preparing', 'ready', 'delivered']
+            && d.get('unitId', null) == get(deviceDoc()).data.get('unitId', null);
+        }
+        allow read: if isMember(cid) || isAnyScreen(cid);
+        allow create: if isIntegration(cid) && oid.matches(uid() + '_.+') && validOrder();
+        allow update: if isIntegration(cid) && resource.data.integrationUid == uid() && validOrder();
+        allow delete: if (isIntegration(cid) && resource.data.integrationUid == uid()) || hasRole(cid, 'admin');
+      }
+    }
+  }
+}

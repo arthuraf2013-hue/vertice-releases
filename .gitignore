@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-e2e/
+dist-hosting/
+release/
+.env
+.env.local
+*.log
+.firebase/
+e2e/harness/dist/
+apps/player/android/app/build/
+apps/player/android/.gradle/
+apps/player/android/local.properties
+.atualizacoes/
+# Chave do APK: fica só no seu computador e no secret ANDROID_KEYSTORE_BASE64 do GitHub.
+*.keystore
+*.jks
