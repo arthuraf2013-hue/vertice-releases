@@ -12,6 +12,10 @@ import { Playlists } from './pages/Playlists.jsx';
 import { Schedules } from './pages/Schedules.jsx';
 import { Company } from './pages/Company.jsx';
 import { Downloads } from './pages/Downloads.jsx';
+import { Captures } from './pages/Captures.jsx';
+import { Apps } from './pages/Apps.jsx';
+import { Price } from './pages/Price.jsx';
+import { Reports } from './pages/Reports.jsx';
 
 // HashRouter: funciona igual no Firebase Hosting e dentro do Electron, sem regra de rewrite.
 export function App() {
@@ -49,6 +53,10 @@ function Gate() {
         <Route path="midias" element={<Media />} />
         <Route path="playlists" element={<Playlists />} />
         <Route path="programacao" element={<Schedules />} />
+        <Route path="capturas" element={<Captures />} />
+        <Route path="aplicativos" element={<Apps />} />
+        <Route path="price" element={<Price />} />
+        <Route path="relatorios" element={<Reports />} />
         <Route path="empresa" element={<Company />} />
         <Route path="downloads" element={<Downloads />} />
         <Route path="*" element={<Navigate to="/" replace />} />

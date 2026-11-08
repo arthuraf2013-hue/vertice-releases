@@ -47,6 +47,8 @@ export function startRemote({ device, updater, ui }) {
           const image = await host.screenshot();
           if (!image) throw new Error('Este aparelho não tira foto da tela (player no navegador).');
           await device.writeLive('screenshot', { image });
+          // Histórico em Capturas (não atrapalha a resposta se falhar).
+          await device.addCapture?.(image).catch((e) => console.warn('[vx] histórico de capturas', e.code || e));
           await responder({ message: 'Foto da tela enviada.' });
           break;
         }

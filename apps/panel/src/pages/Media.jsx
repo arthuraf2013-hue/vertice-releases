@@ -46,7 +46,9 @@ export function Media() {
   const { base, companyId, company, can, member, user } = useSession();
   const toast = useToast();
   const [confirm, confirmDialog] = useConfirm();
-  const media = useCol(`${base}/media`, { orderBy: ['createdAt', 'desc'] });
+  const allMedia = useCol(`${base}/media`, { orderBy: ['createdAt', 'desc'] });
+  // Aplicativos também são "mídias" (entram nas playlists), mas moram em Aplicativos e Price.
+  const media = useMemo(() => allMedia && allMedia.filter((m) => m.type !== 'app'), [allMedia]);
   const playlists = useCol(`${base}/playlists`);
   const [type, setType] = useState('all');
   const [q, setQ] = useState('');

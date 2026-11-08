@@ -191,3 +191,43 @@ test('controle remoto: admin manda comando, a TV responde e manda a foto da tela
   await assertFails(getDoc(live(as('x'), 'diagnostics')));
   await assertFails(getDoc(live(anon(), 'screenshot')));
 });
+
+test('capturas: a TV guarda e apaga o próprio histórico; o painel só lê', async () => {
+  await seedCompany();
+  await assertSucceeds(setDoc(doc(as('tv-1'), 'pairings/AB2CD3'), pairingDoc('tv-1', 'AB2CD3')));
+  await assertSucceeds(claim(as('owner'), 'AB2CD3', 'screen'));
+  const cap = (db, id) => doc(db, `companies/${CID}/screens/scr1/captures/${id}`);
+  const tv = as('tv-1');
+  await assertSucceeds(setDoc(cap(tv, '1'), { image: 'data:image/jpeg;base64,AAAA', at: serverTimestamp() }));
+  await assertFails(setDoc(cap(tv, '2'), { image: 'data:image/png;base64,AAAA', at: serverTimestamp() }));
+  await assertFails(setDoc(cap(tv, '3'), { image: 'data:image/jpeg;base64,AAAA', at: serverTimestamp(), extra: 1 }));
+  await assertFails(setDoc(cap(as('owner'), '4'), { image: 'data:image/jpeg;base64,AAAA', at: serverTimestamp() }));
+  await assertSucceeds(getDoc(cap(as('viewer'), '1')));
+  await assertFails(getDoc(cap(as('x'), '1')));
+  await assertSucceeds(deleteDoc(cap(tv, '1')));
+});
+
+test('relatórios: a TV grava só as exibições dela; membros leem', async () => {
+  await seedCompany();
+  await assertSucceeds(setDoc(doc(as('tv-1'), 'pairings/AB2CD3'), pairingDoc('tv-1', 'AB2CD3')));
+  await assertSucceeds(claim(as('owner'), 'AB2CD3', 'screen'));
+  const st = (db, id) => doc(db, `companies/${CID}/playStats/${id}`);
+  const tv = as('tv-1');
+  const data = (screenId = 'scr1', date = '2026-11-07') => ({ screenId, date, items: { m1: { plays: 3, seconds: 30, name: 'Pão' } }, updatedAt: serverTimestamp() });
+  await assertSucceeds(setDoc(st(tv, 'scr1_2026-11-07'), data()));
+  await assertSucceeds(setDoc(st(tv, 'scr1_2026-11-07'), data())); // reenviar o total do dia
+  await assertFails(setDoc(st(tv, 'scr2_2026-11-07'), data('scr2'))); // outra tela
+  await assertFails(setDoc(st(tv, 'scr1_2026-11-08'), data('scr1', '2026-11-07'))); // id não bate com o dia
+  await assertFails(setDoc(st(as('owner'), 'scr1_2026-11-06'), data('scr1', '2026-11-06'))); // painel não inventa exibição
+  await assertSucceeds(getDocs(query(collection(as('viewer'), `companies/${CID}/playStats`), where('date', '>=', '2026-11-01'))));
+  await assertFails(getDoc(st(as('x'), 'scr1_2026-11-07')));
+});
+
+test('price: editor mantém as tabelas de preço; leitor só lê', async () => {
+  await seedCompany();
+  const pl = (db) => doc(db, `companies/${CID}/priceLists/L1`);
+  await assertSucceeds(setDoc(pl(as('editor')), { name: 'Pães', items: [{ name: 'Pão', price: 12.9 }] }));
+  await assertFails(setDoc(pl(as('viewer')), { name: 'x' }));
+  await assertSucceeds(getDoc(pl(as('viewer'))));
+  await assertFails(getDoc(pl(as('x'))));
+});

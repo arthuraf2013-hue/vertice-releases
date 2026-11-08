@@ -206,6 +206,28 @@ export function createDevice(onChange) {
     }, (e) => console.warn('[vx] comandos', e.code || e));
   }
 
+  /** Foto da tela no histórico (Capturas): guarda as últimas 12. */
+  async function addCapture(image) {
+    if (!state.companyId || !state.screenId) throw new Error('Tela não pareada');
+    const { db } = fb();
+    const col = collection(db, 'companies', state.companyId, 'screens', state.screenId, 'captures');
+    const id = String(Date.now());
+    await setDoc(doc(col, id), { image, at: serverTimestamp() });
+    const keep = (local.get('captures') || []).concat(id).slice(-12);
+    const drop = (local.get('captures') || []).filter((x) => !keep.includes(x));
+    local.set('captures', keep);
+    await Promise.all(drop.map((x) => deleteDoc(doc(col, x)).catch(() => {})));
+  }
+
+  /** Exibições do dia (Relatórios): playStats/{tela}_{dia}, com os totais do dia. */
+  async function writeStats(date, items) {
+    if (!state.companyId || !state.screenId) return;
+    const { db } = fb();
+    await setDoc(doc(db, 'companies', state.companyId, 'playStats', `${state.screenId}_${date}`), {
+      screenId: state.screenId, date, items, updatedAt: serverTimestamp(),
+    });
+  }
+
   /** Grava um documento em screens/{id}/live (diagnóstico, foto da tela). */
   async function writeLive(name, data) {
     if (!state.companyId || !state.screenId) throw new Error('Tela não pareada');
@@ -288,5 +310,7 @@ export function createDevice(onChange) {
       return () => commandSubs.delete(fn);
     },
     writeLive,
+    addCapture,
+    writeStats,
   };
 }

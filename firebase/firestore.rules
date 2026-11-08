@@ -125,6 +125,28 @@ service cloud.firestore {
         allow read: if isMember(cid);
         allow write: if hasRole(cid, 'editor');
       }
+      // Tabelas de preço (Price). A TV recebe os preços já dentro do manifesto.
+      match /priceLists/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
+      // Exibições do dia por tela (Relatórios). Id = "{tela}_{AAAA-MM-DD}"; a TV grava os totais do dia.
+      match /playStats/{id} {
+        function okStats() {
+          let d = request.resource.data;
+          return isScreen(cid, d.screenId)
+            && d.keys().hasOnly(['screenId', 'date', 'items', 'updatedAt'])
+            && d.date is string && d.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+            && id == d.screenId + '_' + d.date
+            && d.items is map && d.items.size() <= 400
+            && d.updatedAt == request.time;
+        }
+        allow read: if isMember(cid);
+        allow create: if okStats();
+        allow update: if okStats() && resource.data.screenId == request.resource.data.screenId;
+        allow delete: if hasRole(cid, 'owner');
+      }
 
       // O que cada TV toca, compilado pelo painel. A TV lê só o dela.
       match /manifests/{sid} {
@@ -165,6 +187,17 @@ service cloud.firestore {
               && d().at == request.time
             );
           allow delete: if hasRole(cid, 'admin');
+        }
+
+        // Histórico de fotos da tela (Capturas). A TV guarda as últimas e apaga as antigas.
+        match /captures/{capId} {
+          allow read: if isMember(cid) || isScreen(cid, sid);
+          allow create: if isScreen(cid, sid)
+            && request.resource.data.keys().hasOnly(['image', 'at'])
+            && request.resource.data.image is string && request.resource.data.image.size() < 900000
+            && request.resource.data.image.matches('data:image/jpeg;base64,.*')
+            && request.resource.data.at == request.time;
+          allow delete: if isScreen(cid, sid) || hasRole(cid, 'admin');
         }
       }
 

@@ -115,7 +115,9 @@ export function createDemoBackend() {
       g.fillStyle = '#eef2f7';
       g.font = '700 44px sans-serif';
       ['139', '137', '138'].forEach((n, i) => g.fillText(n, 724, 120 + i * 80));
-      store.set(`${live}/screenshot`, { image: cv.toDataURL('image/jpeg', 0.7), at: Date.now() });
+      const image = cv.toDataURL('image/jpeg', 0.7);
+      store.set(`${live}/screenshot`, { image, at: Date.now() });
+      store.set(`${live.replace(/\/live$/, '')}/captures/${Date.now()}`, { image, at: Date.now() });
     }
     store.set(`${live}/diagnostics`, {
       ...(store.get(`${live}/diagnostics`) || {}),
@@ -138,7 +140,7 @@ export function createDemoBackend() {
     const col = (name) => [...store.entries()].filter(([p]) => p.startsWith(`${path}/${name}/`) && p.split('/').length === 4).map(([p, d]) => ({ id: p.split('/').pop(), ...d }));
     const schedules = col('schedules').filter((x) => x.status === 'published');
     for (const screen of col('screens')) {
-      store.set(`${path}/manifests/${screen.id}`, buildManifest({ screen, schedules, playlists: col('playlists'), media: col('media'), company }));
+      store.set(`${path}/manifests/${screen.id}`, buildManifest({ screen, schedules, playlists: col('playlists'), media: col('media'), company, priceLists: col('priceLists') }));
     }
   }
   const companyId = 'demo';

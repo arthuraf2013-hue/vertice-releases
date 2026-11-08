@@ -109,6 +109,7 @@ export const host = {
       const r = await Native.fetchText({ url });
       return r.text;
     }
+    if (shell === 'electron' && desktop.fetchText) return desktop.fetchText(url);
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.text();

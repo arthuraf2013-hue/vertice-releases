@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('vxDesktop', {
   settings: (chave) => ipcRenderer.invoke('vx:settings', chave),
   storage: () => ipcRenderer.invoke('vx:storage'),
   screenshot: () => ipcRenderer.invoke('vx:screenshot'),
+  fetchText: (url) => ipcRenderer.invoke('vx:fetch-text', url),
   update: {
     check: () => ipcRenderer.invoke('vx:update:check'),
     state: () => ipcRenderer.invoke('vx:update:state'),

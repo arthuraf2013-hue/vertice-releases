@@ -1,7 +1,7 @@
 // Estados de demonstração do player: abra com ?demo=pairing|play|overlay|sidebar|board|empty|offline
 // Servem para conferir o visual sem TV e sem Firebase.
 // Extras: &rot=90 &zoom=95 &x=2 &y=-1 &fit=blur &calib=1 &poster=1 (arte vertical 9:16)
-import { ORDER_BOARD_DEFAULTS } from '@vertice/shared';
+import { ORDER_BOARD_DEFAULTS, priceListForTv } from '@vertice/shared';
 
 function art(over, title, price, tone = '#141b26', mid = '#293548') {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="1920" height="1080">
@@ -29,6 +29,22 @@ const params = typeof location !== 'undefined' ? new URLSearchParams(location.se
 if (params.get('poster')) items.unshift({ key: 'p:x', mediaId: 'm9', name: 'Combo.png', type: 'image', url: poster(), durationSec: 8 });
 
 if (params.get('az')) items[0] = { ...items[0], adjust: { zoom: Number(params.get('az')), offsetX: Number(params.get('ax') || 0), offsetY: Number(params.get('ay') || 0) } };
+
+// &app=price|clock|ticker|weather|rss: a TV mostra só esse aplicativo (conferir o visual dos apps).
+const DEMO_APPS = {
+  price: { kind: 'price', config: { listId: 'pl1' }, data: priceListForTv({ title: 'Pães e salgados', subtitle: 'Saindo do forno agora', footer: 'Aceitamos Pix, cartão e vale-refeição', layout: params.get('layout') || 'list', items: [
+    { name: 'Pão francês', unit: 'kg', price: 14.9, promoPrice: 12.9 }, { name: 'Pão de queijo', unit: 'kg', price: 59.9 }, { name: 'Pão integral', unit: 'un', price: 11.5 },
+    { name: 'Coxinha de frango', unit: 'un', price: 7.5, highlight: true }, { name: 'Empada de camarão', unit: 'un', price: 9.9 }, { name: 'Bolo de rolo', unit: 'kg', price: 42, promoPrice: 38 },
+    { name: 'Cuscuz recheado', unit: 'un', price: 14.5 }, { name: 'Café coado', unit: '200 ml', price: 4.5 }, { name: 'Suco de laranja', unit: '300 ml', price: 8 }, { name: 'Tapioca de queijo', unit: 'un', price: 10 },
+  ] }) },
+  clock: { kind: 'clock', config: { message: 'Pão quentinho saindo de hora em hora', showDate: true, theme: 'night' } },
+  ticker: { kind: 'ticker', config: { title: 'Encomendas de Natal abertas', lines: ['Peça seu chester e panetone até 20/12', 'Aceitamos Pix e cartão', 'Wi-Fi: BoaMassa-Clientes'], speed: 'normal', theme: 'wine' } },
+  weather: { kind: 'weather', config: { city: 'Recife, Pernambuco', lat: -8.05, lon: -34.88, days: 4, theme: 'brand' } },
+  rss: { kind: 'rss', config: { url: 'https://g1.globo.com/rss/g1/pernambuco/', source: 'g1 Pernambuco', count: 5, theme: 'night' } },
+};
+if (DEMO_APPS[params.get('app')]) {
+  items.splice(0, items.length, { key: 'p:app', mediaId: 'app', name: 'App', type: 'app', url: null, app: DEMO_APPS[params.get('app')], durationSec: 3600 });
+}
 
 const allDay = { id: 'demo:0', priority: 0, days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '24:00', items };
 

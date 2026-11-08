@@ -8,6 +8,7 @@ import { OrderOverlay, OrderSidebar, OrderBoard, useReadyAnnouncer, chaveDoPront
 import { OperatorMenu } from './ui/OperatorMenu.jsx';
 import { createUpdater } from './services/updater.js';
 import { startRemote } from './services/remote.js';
+import { createStats } from './services/stats.js';
 import { demoState, demoReady } from './demo.js';
 
 export function App() {
@@ -46,13 +47,15 @@ function Live() {
         openMenu: () => setSignals((x) => ({ ...x, open: x.open + 1 })),
       },
     });
-    setSvc({ updater, remote });
+    // Relatórios: exibições por mídia, somadas no aparelho e enviadas a cada 5 min.
+    const stats = createStats(d);
+    setSvc({ updater, remote, stats });
   }, []);
   if (!state) return null;
-  return <Screen state={state} device={deviceRef.current} updater={svc.updater} remote={svc.remote} signals={signals} />;
+  return <Screen state={state} device={deviceRef.current} updater={svc.updater} remote={svc.remote} stats={svc.stats} signals={signals} />;
 }
 
-function Screen({ state, device, updater, remote, signals }) {
+function Screen({ state, device, updater, remote, stats, signals }) {
   const { phase, manifest, network } = state;
   const cache = device?.cache || state.cache;
   const [empty, setEmpty] = useState(false);
@@ -73,7 +76,7 @@ function Screen({ state, device, updater, remote, signals }) {
     const firstSync = state.sync?.status === 'syncing' && state.sync.done === 0 && network?.online === false;
     const content = (
       <>
-        <Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} />
+        <Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
         {empty && <SystemScreen variant={firstSync ? 'syncing' : 'empty'} network={network} screenCode={manifest.screen?.code} companyName={manifest.company?.name} />}
       </>
     );

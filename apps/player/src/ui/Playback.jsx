@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { resolveNow } from '@vertice/shared';
+import { AppView } from '@vertice/shared/apps';
+import { useAppData } from '../services/appData.js';
+
+// Imagem e aplicativo ficam o tempo da playlist; vídeo vai até o fim.
+const timed = (it) => it.type === 'image' || it.type === 'app';
 
 /**
  * Toca a programação: resolve o que vale agora, passa item por item e,
  * a cada troca, confere de novo o horário (troca de faixa sem cortar a mídia no meio).
  */
-export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty }) {
+export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty, onPlayed }) {
   const defaultFit = manifest?.screen?.display?.fit || 'cover';
   const [cur, setCur] = useState(() => pick(manifest, null));
   const timer = useRef(null);
@@ -41,7 +46,7 @@ export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty 
       setCur((c) => {
         const r = resolveNow(manifestRef.current);
         if (c?.pinned) return c;
-        if (c && r.slotId !== c.slotId && c.item.type === 'image') return pick(manifestRef.current, null);
+        if (c && r.slotId !== c.slotId && timed(c.item)) return pick(manifestRef.current, null);
         if (!c && r.items.length) return pick(manifestRef.current, null);
         return c;
       });
@@ -62,7 +67,7 @@ export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty 
     onNowPlaying?.(cur.item);
     if (cur.pinned) {
       // Fixada: fica parada (imagem) ou repete (vídeo) até o painel soltar.
-    } else if (cur.item.type === 'image') {
+    } else if (timed(cur.item)) {
       timer.current = setTimeout(next, (cur.item.durationSec || 10) * 1000);
     } else {
       // Rede de segurança: se o vídeo travar, segue em frente.
@@ -75,10 +80,19 @@ export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty 
       const img = new Image();
       img.src = cache.src(n);
     }
-    return () => clearTimeout(timer.current);
+    // Relatórios: conta a exibição quando ela termina (mídia fixada para ajuste não conta).
+    const started = Date.now();
+    const shown = cur;
+    return () => {
+      clearTimeout(timer.current);
+      if (!shown.pinned) onPlayed?.(shown.item, (Date.now() - started) / 1000);
+    };
   }, [cur?.n, cur?.pinned]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!cur) return null;
+  if (cur.item.type === 'app') {
+    return <div className="tv-play"><AppItem key={cur.n} item={cur.item} onFail={next} /></div>;
+  }
   const src = cache.src(cur.item);
   const fit = cur.item.fit || defaultFit;
   const a = cur.item.adjust;
@@ -96,6 +110,16 @@ export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty 
         // Vídeo com fundo desfocado tocaria dois vídeos ao mesmo tempo (pesado na TV box): mostra inteiro.
         <Video key={cur.n} src={src} fit={fit === 'blur' ? 'contain' : fit} style={adj} loop={!!cur.pinned} muted={cur.item.muted} onEnded={next} />
       )}
+    </div>
+  );
+}
+
+/** Aplicativo na tela (relógio, clima, notícias, preços…). */
+function AppItem({ item }) {
+  const data = useAppData(item.app);
+  return (
+    <div className="tv-media-wrap tv-app">
+      <AppView app={item.app} weather={data.weather} feed={data.feed} status={data.status} />
     </div>
   );
 }

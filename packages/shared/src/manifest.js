@@ -1,4 +1,5 @@
 import { DEFAULT_IMAGE_SECONDS, ORDER_BOARD_DEFAULTS, DISPLAY_DEFAULTS, DISPLAY_LIMITS, FIT_MODES, MEDIA_ADJUST_LIMITS } from './constants.js';
+import { normalizeApp, appDefaultSeconds, priceListForTv } from './apps.js';
 
 /**
  * O MANIFESTO é o que deixa o player leve: em vez de a TV ouvir telas, grades,
@@ -62,12 +63,14 @@ const earlierDate = (a, b) => (!a ? b || null : !b ? a : a < b ? a : b);
  * Ajustes da playlist valem mais que os da mídia; os da mídia valem mais que os da tela.
  * Validade: o item só toca dentro das duas janelas (playlist e mídia).
  */
-export function expandPlaylist(playlist, mediaById) {
+export function expandPlaylist(playlist, mediaById, priceById = null) {
   if (!playlist) return [];
   return (playlist.items || [])
     .map((it, idx) => {
       const m = mediaById.get(it.mediaId);
-      if (!m || !m.url) return null;
+      if (!m) return null;
+      if (m.type === 'app') return expandApp(playlist, it, idx, m, priceById);
+      if (!m.url) return null;
       const durationSec =
         m.type === 'video'
           ? Number(it.durationSec) || Math.ceil(m.durationSec || 0) || null
@@ -91,6 +94,34 @@ export function expandPlaylist(playlist, mediaById) {
     .filter(Boolean);
 }
 
+/** Aplicativo na playlist: não tem arquivo; leva o tipo, a configuração e (Price) a tabela. */
+function expandApp(playlist, it, idx, m, priceById) {
+  const app = normalizeApp(m.app);
+  if (!app) return null;
+  if (app.kind === 'price') {
+    // Sem o mapa de tabelas (ex.: só calculando a duração), o item vale; no manifesto, só com a tabela.
+    if (priceById) {
+      const data = priceListForTv(priceById.get(app.config.listId));
+      if (!data || !data.items.length) return null;
+      app.data = data;
+    }
+  }
+  return {
+    key: `${playlist.id}:${idx}`,
+    mediaId: m.id,
+    name: m.name,
+    type: 'app',
+    url: null,
+    sizeBytes: 0,
+    app,
+    durationSec: Number(it.durationSec) || Number(m.defaultDurationSec) || appDefaultSeconds(app.kind),
+    fit: null,
+    muted: true,
+    validFrom: laterDate(it.validFrom, m.validFrom),
+    validTo: earlierDate(it.validTo, m.validTo),
+  };
+}
+
 function guessExt(m) {
   const fromName = /\.([a-z0-9]{2,4})$/i.exec(m.name || '');
   if (fromName) return fromName[1].toLowerCase();
@@ -106,15 +137,16 @@ function guessExt(m) {
  * @param {object[]} p.media  mídias da empresa
  * @param {object} [p.company]
  */
-export function buildManifest({ screen, schedules, playlists, media, company }) {
+export function buildManifest({ screen, schedules, playlists, media, company, priceLists }) {
   const mediaById = new Map((media || []).map((m) => [m.id, m]));
+  const priceById = new Map((priceLists || []).map((l) => [l.id, l]));
   const playlistById = new Map((playlists || []).map((p) => [p.id, p]));
   const applicable = schedulesForScreen(screen, schedules);
 
   const slots = [];
   for (const s of applicable) {
     for (const [i, slot] of (s.slots || []).entries()) {
-      const items = expandPlaylist(playlistById.get(slot.playlistId), mediaById);
+      const items = expandPlaylist(playlistById.get(slot.playlistId), mediaById, priceById);
       if (!items.length) continue;
       slots.push({
         id: `${s.id}:${i}`,
@@ -131,7 +163,7 @@ export function buildManifest({ screen, schedules, playlists, media, company }) 
 
   const fallbackSchedule = applicable.find((s) => s.fallbackPlaylistId && playlistById.get(s.fallbackPlaylistId));
   const fallback = fallbackSchedule
-    ? expandPlaylist(playlistById.get(fallbackSchedule.fallbackPlaylistId), mediaById)
+    ? expandPlaylist(playlistById.get(fallbackSchedule.fallbackPlaylistId), mediaById, priceById)
     : [];
 
   // Ajustes desta tela para mídias específicas valem mais que tudo (playlist, mídia e padrão).
@@ -147,7 +179,8 @@ export function buildManifest({ screen, schedules, playlists, media, company }) 
   for (let i = 0; i < fallback.length; i++) fallback[i] = applyOverride(fallback[i]);
 
   const allItems = [...slots.flatMap((s) => s.items), ...fallback];
-  const assets = [...new Map(allItems.map((it) => [it.mediaId, it])).values()].map((it) => ({
+  // Só o que tem arquivo para baixar (aplicativos se montam na TV).
+  const assets = [...new Map(allItems.filter((it) => it.url).map((it) => [it.mediaId, it])).values()].map((it) => ({
     mediaId: it.mediaId,
     url: it.url,
     ext: it.ext,

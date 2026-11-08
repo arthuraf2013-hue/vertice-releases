@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useRef, useState, createContext, useContext, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { screenStatus, STATUS_LABEL, formatTime, timeAgo } from '@vertice/shared';
+import { screenStatus, STATUS_LABEL, formatTime, timeAgo, APP_KINDS } from '@vertice/shared';
 import { Icon } from './Icon.jsx';
 
 /* ---------- Marca ---------- */
@@ -177,6 +177,15 @@ export function MediaThumb({ media, className = '' }) {
     return (
       <div className={`vx-thumb vx-thumb-empty ${className}`}>
         <Icon name="screen" />
+      </div>
+    );
+  }
+  if (media.type === 'app') {
+    const def = APP_KINDS[media.app?.kind];
+    return (
+      <div className={`vx-thumb vx-thumb-app ${className}`}>
+        <Icon name={def?.icon || 'apps'} />
+        <span className="vx-thumb-tag"><Icon name="apps" />{def?.label || 'App'}</span>
       </div>
     );
   }

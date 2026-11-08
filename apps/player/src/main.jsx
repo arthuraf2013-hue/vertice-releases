@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import '@vertice/shared/styles/fonts.css';
 import '@vertice/shared/styles/tokens.css';
+import '@vertice/shared/apps.css';
 import './styles.css';
 import { App } from './App.jsx';
 import { captureErrors } from './services/diagnostics.js';

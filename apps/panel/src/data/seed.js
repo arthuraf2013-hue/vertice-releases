@@ -61,7 +61,7 @@ export function seedDemo({ set }) {
 
   set(`${c}/playlists/p1`, {
     name: 'Café da manhã', updatedAt: now - 2 * 1440 * MIN,
-    items: [{ mediaId: 'm2', durationSec: 10 }, { mediaId: 'm4', durationSec: 10 }, { mediaId: 'm1', durationSec: 8 }, { mediaId: 'm7' }],
+    items: [{ mediaId: 'm2', durationSec: 10 }, { mediaId: 'm4', durationSec: 10 }, { mediaId: 'm1', durationSec: 8 }, { mediaId: 'm7' }, { mediaId: 'price_pl1' }, { mediaId: 'app-clock' }],
   });
   set(`${c}/playlists/p2`, {
     name: 'Tarde e lanches', updatedAt: now - 1440 * MIN,
@@ -107,6 +107,44 @@ export function seedDemo({ set }) {
       appVersion: '0.3.0', resolution: '1920×1080', deviceUid: `dev-${id}`, pairedAt: now - 30 * 1440 * MIN,
       orderBoard: { ...ORDER_BOARD_DEFAULTS, ...ob }, ...extra,
     });
+  });
+
+  // Aplicativos e Price (Fase 2).
+  set(`${c}/media/app-clock`, { type: 'app', name: 'Relógio da loja', app: { kind: 'clock', config: { message: 'Pão quentinho saindo de hora em hora', theme: 'night' } }, sizeBytes: 0, createdAt: now - 3 * 1440 * MIN, updatedAt: now - 3 * 1440 * MIN });
+  set(`${c}/media/app-weather`, { type: 'app', name: 'Clima em Recife', app: { kind: 'weather', config: { city: 'Recife, Pernambuco', lat: -8.05389, lon: -34.88111, days: 4, theme: 'brand' } }, sizeBytes: 0, createdAt: now - 2 * 1440 * MIN });
+  set(`${c}/media/app-ticker`, { type: 'app', name: 'Avisos do balcão', app: { kind: 'ticker', config: { title: 'Encomendas de Natal abertas', lines: ['Peça seu chester e panetone até 20/12', 'Aceitamos Pix e cartão', 'Wi-Fi: BoaMassa-Clientes'], speed: 'normal', theme: 'wine' } }, sizeBytes: 0, createdAt: now - 1440 * MIN });
+  set(`${c}/priceLists/pl1`, {
+    name: 'Pães e salgados', title: 'Pães e salgados', subtitle: 'Saindo do forno agora', footer: 'Aceitamos Pix, cartão e vale-refeição', theme: 'night', layout: 'list',
+    updatedAt: now - 2 * 60 * MIN,
+    items: [
+      { name: 'Pão francês', unit: 'kg', price: 14.9, promoPrice: 12.9, highlight: false },
+      { name: 'Pão de queijo', unit: 'kg', price: 59.9 },
+      { name: 'Pão integral', unit: 'un', price: 11.5 },
+      { name: 'Coxinha de frango', unit: 'un', price: 7.5, highlight: true },
+      { name: 'Empada de camarão', unit: 'un', price: 9.9 },
+      { name: 'Bolo de rolo', unit: 'kg', price: 42, promoPrice: 38 },
+      { name: 'Cuscuz recheado', unit: 'un', price: 14.5 },
+      { name: 'Café coado', unit: '200 ml', price: 4.5 },
+      { name: 'Suco de laranja', unit: '300 ml', price: 8 },
+      { name: 'Tapioca de queijo', unit: 'un', price: 10 },
+    ],
+  });
+  set(`${c}/media/price_pl1`, { type: 'app', name: 'Preços · Pães e salgados', app: { kind: 'price', config: { listId: 'pl1' } }, sizeBytes: 0, createdAt: now - 2 * 60 * MIN });
+
+  // Exibições dos últimos 14 dias (Relatórios).
+  const plays = [['m1', 'Pão francês.png', 10], ['m2', 'Café + pão de queijo.png', 10], ['m3', 'Bolo de rolo.png', 10], ['m5', 'Vitrine de bolos.mp4', 20], ['m7', 'Institucional Boa Massa.mp4', 30], ['price_pl1', 'Preços · Pães e salgados', 15], ['app-clock', 'Relógio da loja', 10]];
+  ['s1', 's2', 's4', 's6'].forEach((sid, si) => {
+    for (let d = 0; d < 14; d++) {
+      const dt = new Date(now - d * 1440 * MIN);
+      const date = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      const items = {};
+      plays.forEach(([mid, name, sec], mi) => {
+        if ((mi + si) % 5 === 4) return;
+        const n = Math.round(70 + 40 * Math.sin(d + mi) + (6 - mi) * 12 - si * 8 - (d === 0 ? 40 : 0));
+        items[mid] = { plays: Math.max(4, n), seconds: Math.max(4, n) * sec, name };
+      });
+      set(`${c}/playStats/${sid}_${date}`, { screenId: sid, date, items, updatedAt: now - d * 1440 * MIN });
+    }
   });
 
   set(`${c}/integrations/int-gerencia`, {

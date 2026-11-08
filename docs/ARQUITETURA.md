@@ -88,6 +88,44 @@ companies/{id}                      name, plan, screenLimit, storageQuotaMB, sto
   orders/{uid_venda}                number, customerName, status, unitId, readyAt, expireAt
 ```
 
-## Fase 2 (já prevista na estrutura)
+## Fase 2: Aplicativos, Price, Capturas e Relatórios
 
-Capturas de tela (PRO), Aplicativos (hora e clima, barra inferior, QR Code, Google Sheets), Price, Relatórios. O manifesto e o player já separam "o que tocar" de "como mostrar", então os aplicativos entram como novos tipos de item no manifesto.
+### Aplicativos
+
+- Cada aplicativo configurado é uma **mídia do tipo `app`**: `media/{id}` com `type: 'app'` e `app: { kind, config }`. Por isso entra nas playlists, grades e validade como qualquer imagem.
+- Tipos (`APP_KINDS` em `packages/shared/src/apps.js`): relógio, avisos (faixa correndo), clima (Open-Meteo, sem chave), notícias (RSS/Atom), site, YouTube e tabela de preços.
+- O desenho fica num componente só, `packages/shared/src/apps/AppView.jsx`, usado pelo player e pela prévia do painel. É desenhado num quadro fixo (1920×1080 ou 1080×1920) e escalado, então fica igual em qualquer TV.
+- No manifesto, o item de app não tem `url` nem entra em `assets` (nada para baixar). Leva `app` e a duração.
+- O player busca clima e notícias e guarda no aparelho (clima por 30 min, notícias por 15 min). Sem internet, mostra o último que conseguiu. As notícias passam pelo `host.fetchText` (Android nativo e Electron, sem CORS); no player web, só funcionam feeds que liberam CORS.
+
+### Price
+
+- `companies/{id}/priceLists/{lista}`: título, subtítulo, rodapé, cores, formato (lista ou cartões) e itens (`name`, `unit`, `price`, `promoPrice`, `highlight`, `hidden`).
+- Cada tabela tem uma mídia de app ligada, com id `price_{lista}` (`priceMediaId`). Ela é o que entra nas playlists.
+- Ao salvar, o painel recompila os manifestos e os preços já vão **dentro** do manifesto (`app.data`, via `priceListForTv`). A TV não lê `priceLists`.
+- Importação de planilha CSV (Excel ou Google Sheets, separador `;` ou `,`). Reconhece as colunas Produto, Unidade, Preço, Oferta e Categoria em qualquer ordem.
+
+### Capturas
+
+- O comando `screenshot` (controle remoto) já existia. Agora a TV também guarda a foto no histórico `screens/{id}/captures/{ms}` e mantém as 12 últimas.
+- A página Capturas mostra a última foto de cada tela, pede foto de todas as telas online de uma vez (só admin) e abre o histórico de cada uma.
+
+### Relatórios
+
+- A TV soma no aparelho cada exibição (uma vez e o tempo na tela) e, a cada 5 minutos, grava os **totais do dia** em `playStats/{tela}_{AAAA-MM-DD}`: `{ screenId, date, items: { [mediaId]: { plays, seconds, name } } }`.
+- Gravar o total, e não um "+1", deixa o envio repetível: se cair a internet, a TV manda de novo sem duplicar.
+- Mídia fixada para ajuste (Fixar na TV) não conta.
+- O painel soma por mídia, por tela ou por dia (`aggregatePlays`) e exporta CSV para Excel (`toCsv`).
+- Players anteriores a esta versão não mandam exibições.
+
+### Regras novas
+
+| Coleção | Quem lê | Quem grava |
+|---|---|---|
+| `priceLists/{id}` | membros | editor ou acima |
+| `playStats/{tela}_{dia}` | membros | só a própria TV, com id, data e campos conferidos |
+| `screens/{id}/captures/{id}` | membros e a própria TV | a própria TV (JPEG até ~900 KB); apaga: a TV ou admin |
+
+### Ainda por fazer
+
+Estúdio (editor de peças), Video wall, Anunciantes, QR Code e Google Sheets como aplicativos.

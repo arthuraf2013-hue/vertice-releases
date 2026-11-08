@@ -1,0 +1,85 @@
+/* Aplicativos do Vértice (player e prévia do painel). Medidas em px do quadro fixo 1920×1080 / 1080×1920. */
+.vxa-stage { position: absolute; inset: 0; overflow: hidden; }
+.vxa, .vxa * { box-sizing: border-box; }
+.vxa-canvas { position: absolute; left: 50%; top: 50%; transform-origin: center; }
+.vxa {
+  position: absolute; inset: 0; background: var(--vxa-bg); color: var(--vxa-fg);
+  font-family: var(--font-body, 'Manrope', system-ui, sans-serif); line-height: 1.25; letter-spacing: normal; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.vxa-empty { position: absolute; inset: 0; background: #0E1A2B; }
+.vxa-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+.vxa-missing { position: absolute; inset: 0; display: grid; place-items: center; background: #0E1A2B; color: #F4F1EA; font: 600 24px/1.3 var(--font-body, sans-serif); padding: 24px; text-align: center; }
+.vxa-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 80px; gap: 24px; }
+.vxa-over { font: 700 34px/1 var(--font-display, 'Sora', sans-serif); letter-spacing: .18em; text-transform: uppercase; color: var(--vxa-accent); }
+.vxa-muted { opacity: .72; }
+
+/* Relógio */
+.vxa-clock-time { font: 700 360px/1 var(--font-display, 'Sora', sans-serif); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.vxa-clock-time small { font-size: 120px; margin-left: 24px; opacity: .6; }
+.vxa-blink { animation: vxa-blink 2s steps(1) infinite; padding: 0 .04em; }
+@keyframes vxa-blink { 50% { opacity: .25; } }
+.vxa-clock-date { font: 600 72px/1.2 var(--font-display, 'Sora', sans-serif); color: var(--vxa-accent); }
+.vxa-clock-msg { font: 600 56px/1.3 var(--font-body, sans-serif); max-width: 1500px; opacity: .9; }
+.is-portrait .vxa-clock-time { font-size: 250px; }
+.is-portrait .vxa-clock-date { font-size: 60px; }
+
+/* Avisos */
+.vxa-ticker-body { gap: 36px; }
+.vxa-ticker-title { font: 800 150px/1.05 var(--font-display, 'Sora', sans-serif); max-width: 1700px; }
+.vxa-ticker-first { font: 600 64px/1.3 var(--font-body, sans-serif); max-width: 1600px; opacity: .88; }
+.is-portrait .vxa-ticker-title { font-size: 120px; }
+.vxa-marquee { height: 150px; flex: none; background: var(--vxa-accent); color: var(--vxa-bg); overflow: hidden; display: flex; align-items: center; }
+.vxa-marquee-track { display: flex; white-space: nowrap; animation: vxa-marquee linear infinite; will-change: transform; }
+.vxa-marquee-track span { font: 700 64px/1 var(--font-display, 'Sora', sans-serif); padding-right: 120px; }
+@keyframes vxa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* Clima */
+.vxa-weather { flex: 1; display: flex; align-items: center; justify-content: space-around; padding: 90px; gap: 60px; }
+.vxa-weather.col { flex-direction: column; justify-content: center; }
+.vxa-weather-now { display: flex; flex-direction: column; gap: 18px; }
+.vxa-weather.col .vxa-weather-now { align-items: center; text-align: center; }
+.vxa-weather-main { display: flex; align-items: center; gap: 30px; }
+.vxa-weather-temp { font: 700 300px/1 var(--font-display, 'Sora', sans-serif); letter-spacing: -.03em; }
+.vxa-weather-desc { font: 700 72px/1.1 var(--font-display, 'Sora', sans-serif); }
+.vxa-weather-range { font-size: 42px; }
+.vxa-weather-city { font: 700 72px/1.1 var(--font-display, 'Sora', sans-serif); }
+.vxa-weather-days { display: grid; grid-auto-flow: column; gap: 24px; }
+.vxa-weather-day { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 30px; border-radius: 28px; background: rgba(128,128,128,0.08); background: color-mix(in srgb, var(--vxa-fg) 8%, transparent); min-width: 190px; }
+.vxa-weather-day b { font: 700 40px/1 var(--font-display, 'Sora', sans-serif); text-transform: capitalize; color: var(--vxa-accent); }
+.vxa-weather-day span { font-size: 40px; white-space: nowrap; }
+.vxa-weather-day strong { font-weight: 800; }
+
+/* Notícias */
+.vxa-news { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 110px 140px; gap: 44px; }
+.vxa-news-lead { font: 800 96px/1.12 var(--font-display, 'Sora', sans-serif); max-width: 1640px; }
+.vxa-news-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 22px; }
+.vxa-news-list li { font: 600 46px/1.3 var(--font-body, sans-serif); padding-left: 40px; position: relative; opacity: .9; }
+.vxa-news-list li::before { content: ''; position: absolute; left: 0; top: .5em; width: 16px; height: 16px; border-radius: 50%; background: var(--vxa-accent); }
+.is-portrait .vxa-news { padding: 120px 80px; }
+.is-portrait .vxa-news-lead { font-size: 84px; }
+
+/* Price */
+.vxa-price { flex: 1; display: flex; flex-direction: column; padding: 70px 90px 60px; gap: 36px; min-height: 0; }
+.vxa-price-head { display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 6px solid var(--vxa-accent); padding-bottom: 24px; }
+.vxa-price-title { font: 800 96px/1 var(--font-display, 'Sora', sans-serif); }
+.vxa-price-sub { font-size: 40px; margin-top: 12px; }
+.vxa-price-list { flex: 1; display: grid; column-gap: 90px; align-content: start; min-height: 0; }
+.vxa-price-row { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 18px; min-height: 0; font-size: calc(var(--row, 90px) * .4); border-bottom: 2px solid rgba(128,128,128,.25); }
+.vxa-price-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vxa-price-name em { font-style: normal; opacity: .6; font-weight: 600; font-size: .7em; }
+.vxa-price-dots { border-bottom: 3px dotted rgba(128,128,128,.45); transform: translateY(.3em); }
+.vxa-price-row s { opacity: .55; font-size: .7em; }
+.vxa-price-val { font: 800 1.15em/1 var(--font-display, 'Sora', sans-serif); font-variant-numeric: tabular-nums; }
+.vxa-price-val small { font-size: .55em; margin-right: 6px; opacity: .8; }
+.vxa-price-row.is-hl .vxa-price-val, .vxa-price-row.is-hl .vxa-price-name { color: var(--vxa-accent); }
+.vxa-price-cards { flex: 1; display: grid; gap: 24px; min-height: 0; }
+.vxa-price-card { display: flex; flex-direction: column; justify-content: center; gap: calc(var(--card, 240px) * .03); padding: calc(var(--card, 240px) * .1) 32px; border-radius: 26px; background: rgba(128,128,128,.14); min-height: 0; overflow: hidden; }
+.vxa-price-card b { font: 700 calc(var(--card, 240px) * .15)/1.12 var(--font-display, 'Sora', sans-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.vxa-price-card s { opacity: .6; font-size: calc(var(--card, 240px) * .1); }
+.vxa-price-card .vxa-price-val { font-size: calc(var(--card, 240px) * .24); white-space: nowrap; }
+.vxa-price-card b em { font-style: normal; font-weight: 600; font-size: .62em; opacity: .7; }
+.vxa-price-was { display: flex; align-items: center; gap: .6em; }
+.vxa-price-card.is-hl { background: var(--vxa-accent); color: var(--vxa-bg); }
+.vxa-price-tag { flex: none; font: 800 calc(var(--card, 240px) * .07)/1 var(--font-display, 'Sora', sans-serif); letter-spacing: .12em; padding: .45em .7em; border-radius: 99px; background: var(--vxa-bg); color: var(--vxa-accent); }
+.vxa-price-foot { font-size: 34px; text-align: center; }

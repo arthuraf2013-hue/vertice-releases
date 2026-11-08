@@ -8,7 +8,9 @@
     ".": "./src/index.js",
     "./styles/tokens.css": "./src/styles/tokens.css",
     "./styles/fonts.css": "./src/styles/fonts.css",
-    "./brand/*": "./src/brand/*"
+    "./brand/*": "./src/brand/*",
+    "./apps": "./src/apps/AppView.jsx",
+    "./apps.css": "./src/apps/apps.css"
   },
   "scripts": {
     "test": "vitest run"
@@ -20,5 +22,8 @@
   },
   "devDependencies": {
     "vitest": "^5.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
   }
 }

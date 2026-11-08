@@ -9,18 +9,19 @@ import { api } from './api.js';
  */
 export async function rebuildManifests(cid, screenIds = null) {
   const base = `companies/${cid}`;
-  const [company, screens, schedules, playlists, media] = await Promise.all([
+  const [company, screens, schedules, playlists, media, priceLists] = await Promise.all([
     api.getDoc(base),
     api.getCol(`${base}/screens`),
     api.getCol(`${base}/schedules`, { where: [['status', '==', 'published']] }),
     api.getCol(`${base}/playlists`),
     api.getCol(`${base}/media`),
+    api.getCol(`${base}/priceLists`),
   ]);
   const targets = screenIds ? screens.filter((s) => screenIds.includes(s.id)) : screens;
   const ops = targets.map((screen) => ({
     op: 'set',
     path: `${base}/manifests/${screen.id}`,
-    data: { ...buildManifest({ screen, schedules, playlists, media, company }), generatedAt: api.NOW },
+    data: { ...buildManifest({ screen, schedules, playlists, media, company, priceLists }), generatedAt: api.NOW },
   }));
   if (ops.length) await api.batch(ops);
   return ops.length;

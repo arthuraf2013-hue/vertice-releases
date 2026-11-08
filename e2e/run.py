@@ -152,10 +152,17 @@ async def main():
         await panel.keyboard.press('Escape')
         step('controle remoto: a TV se identificou e mandou o diagnóstico')
         # Menu do operador pelo "controle": uma tecla mostra o botão, OK abre, Esc fecha.
-        await tv.keyboard.press('ArrowDown')
-        await expect(tv.locator('.vx-op-fab')).to_be_visible(timeout=5000)
-        await tv.keyboard.press('Enter')
-        await expect(tv.locator('.vx-op-panel')).to_be_visible(timeout=5000)
+        # A TV acabou de receber comandos (aviso de "identificar" na tela): tenta a tecla até 3 vezes.
+        for tentativa in range(3):
+            await tv.keyboard.press('ArrowDown')
+            await expect(tv.locator('.vx-op-fab')).to_be_visible(timeout=5000)
+            await tv.keyboard.press('Enter')
+            try:
+                await expect(tv.locator('.vx-op-panel')).to_be_visible(timeout=4000)
+                break
+            except AssertionError:
+                if tentativa == 2:
+                    raise
         await tv.screenshot(path=f'{SHOTS}/7-tv-menu-operador.png')
         await tv.keyboard.press('Escape')
         await expect(tv.locator('.vx-op-panel')).to_have_count(0)
@@ -182,6 +189,21 @@ async def main():
         step('ajuste da mídia nesta tela apareceu ao vivo na TV')
         await adj.get_by_role('button', name='Salvar ajuste').click()
         await panel.keyboard.press('Escape')
+
+        # 6c. Price: tabela de preços na playlist aparece na TV
+        await panel.goto(PANEL + '#/price')
+        await panel.get_by_role('button', name='Criar a primeira tabela').click()
+        await panel.get_by_label('Título', exact=True).fill('Padaria E2E')
+        await panel.get_by_label('Produto', exact=True).first.fill('Pão francês')
+        await panel.get_by_label('Preço de Pão francês').fill('12,90')
+        await panel.get_by_role('button', name='Salvar e publicar').click()
+        await expect(panel.get_by_label('Escolher playlist')).to_be_visible(timeout=15000)
+        await panel.get_by_label('Escolher playlist').select_option(index=1)
+        await panel.get_by_role('button', name='Adicionar', exact=True).click()
+        await expect(tv.locator('.vxa-price-title')).to_have_text('Padaria E2E', timeout=60000)
+        await expect(tv.locator('.vxa-price-val').first).to_contain_text('12,90')
+        await tv.screenshot(path=f'{SHOTS}/6-tv-price.png')
+        step('tabela do Price entrou na playlist e apareceu na TV')
 
         # 7. Desconectar a tela → TV volta ao pareamento
         await panel.goto(PANEL + '#/')

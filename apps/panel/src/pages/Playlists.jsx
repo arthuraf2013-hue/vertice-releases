@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { expandPlaylist, totalDuration, formatDuration, formatDateTime, DEFAULT_IMAGE_SECONDS } from '@vertice/shared';
+import { expandPlaylist, totalDuration, formatDuration, formatDateTime, DEFAULT_IMAGE_SECONDS, appDefaultSeconds } from '@vertice/shared';
 import { useSession } from '../session.jsx';
 import { useCol, useById } from '../data/hooks.js';
 import { api } from '../data/api.js';
@@ -147,7 +147,7 @@ function PlaylistEditor({ playlist, media, mediaById, onClose, onSaved }) {
                             <span>{m?.type === 'video' ? 'Duração' : 'Segundos'}</span>
                             {m?.type === 'video'
                               ? <span className="vx-mini-static">{formatDuration(m.durationSec)} (vídeo inteiro)</span>
-                              : <input className="vx-input" type="number" min={2} max={600} value={it.durationSec || ''} placeholder={`${m.defaultDurationSec || DEFAULT_IMAGE_SECONDS} (da mídia)`} onChange={(e) => patch(i, { durationSec: e.target.value })} />}
+                              : <input className="vx-input" type="number" min={2} max={600} value={it.durationSec || ''} placeholder={`${m.defaultDurationSec || (m.type === 'app' ? appDefaultSeconds(m.app?.kind) : DEFAULT_IMAGE_SECONDS)} (${m.type === 'app' ? 'do app' : 'da mídia'})`} onChange={(e) => patch(i, { durationSec: e.target.value })} />}
                           </label>
                           <label className="vx-mini-field"><span>Exibir a partir de</span><input className="vx-input" type="date" value={it.validFrom || ''} onChange={(e) => patch(i, { validFrom: e.target.value })} /></label>
                           <label className="vx-mini-field"><span>Até</span><input className="vx-input" type="date" value={it.validTo || ''} onChange={(e) => patch(i, { validTo: e.target.value })} /></label>

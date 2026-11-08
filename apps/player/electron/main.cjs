@@ -243,6 +243,23 @@ ipcMain.handle('vx:storage', async () => {
   return { freeBytes: livre, totalBytes: total, mediaBytes: media.bytes, mediaFiles: media.arquivos };
 });
 
+/** Texto de um endereço http(s) sem CORS (aplicativo Notícias). Até 2 MB, 15 s. */
+ipcMain.handle('vx:fetch-text', async (_e, url) => {
+  const u = new URL(String(url));
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('endereço inválido');
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 15_000);
+  try {
+    const res = await net.fetch(u.toString(), { signal: ctl.signal, headers: { 'user-agent': 'VerticePlayer' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 2 * 1024 * 1024) throw new Error('resposta grande demais');
+    return buf.toString('utf8');
+  } finally {
+    clearTimeout(t);
+  }
+});
+
 /** Foto da tela para o painel (JPEG pequeno, cabe num documento do Firestore). */
 ipcMain.handle('vx:screenshot', async () => {
   if (!win || win.isDestroyed()) return null;
