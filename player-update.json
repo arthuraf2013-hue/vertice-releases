@@ -1,0 +1,28 @@
+{
+  "version": "0.3.6",
+  "nativeHash": "b66d43375121691f2bef77ab90e076a67216e3c6c459f466ae0f09fc00a9d863",
+  "publishedAt": "2026-11-08T13:29:46.373Z",
+  "notes": "atualizacao automatica com redundancia e publicacao que nao trava",
+  "windows": {
+    "version": "0.3.6",
+    "url": "https://github.com/arthuraf2013-hue/vertice-releases/releases/download/v0.3.6/Vertice-Player-Setup-0.3.6.exe",
+    "sha512": "WTOLhJJmIWYrXL5mb6nsPY+gDupHLy0mKRbPtC1wV04uSlXiwePsaaTaZXrEgIr46rPDOMP9ZLMLZ/hh4uQDOg==",
+    "size": 121708632
+  },
+  "android": null,
+  "web": {
+    "version": "0.3.6",
+    "url": "https://github.com/arthuraf2013-hue/vertice-releases/releases/download/v0.3.6/vertice-player-web-0.3.6.zip",
+    "sha256": "c36b821ebe57df66501f58e040f71e6d2307accb1916ea2f9a782624188c4dfe",
+    "size": 529790,
+    "mirrors": [
+      "https://raw.githubusercontent.com/arthuraf2013-hue/vertice-releases/updates/vertice-player-web-0.3.6.zip",
+      "https://cdn.jsdelivr.net/gh/arthuraf2013-hue/vertice-releases@updates/vertice-player-web-0.3.6.zip"
+    ],
+    "minNativeCode": 300
+  },
+  "mirrors": [
+    "https://raw.githubusercontent.com/arthuraf2013-hue/vertice-releases/updates/player-update.json",
+    "https://cdn.jsdelivr.net/gh/arthuraf2013-hue/vertice-releases@updates/player-update.json"
+  ]
+}
