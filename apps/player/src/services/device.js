@@ -273,7 +273,14 @@ export function createDevice(onChange) {
     if (!key) return set({ orders: [] });
     const { db } = fb();
     const q = query(collection(db, 'companies', state.companyId, 'orders'), where('status', 'in', ['preparing', 'ready']));
-    offOrders = onSnapshot(q, (s) => set({ orders: s.docs.map((d) => ({ id: d.id, ...toMs(d.data()) })) }), (e) => console.warn('[vx] orders', e));
+    offOrders = onSnapshot(q, (s) => set({ orders: s.docs.map((d) => ({ id: d.id, ...toMs(d.data()) })) }), (e) => {
+      console.warn('[vx] orders', e.code || e);
+      // Ouvinte com erro para de vez: sem isto a TV deixava de receber as senhas até reiniciar.
+      offOrders = null;
+      ordersKey = null;
+      if (e.code === 'permission-denied') verifyPairing();
+      setTimeout(() => { if (!ordersKey) watchOrders(state.manifest); }, 10_000);
+    });
   }
 
   /* ---------- Sinal de vida ---------- */

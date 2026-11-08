@@ -114,3 +114,18 @@ Por padrão vai só o primeiro nome e a inicial ("Maria S."). Para enviar o nome
 ## Desconectar
 
 `vertice.unpair()` troca a identidade do caixa. Remova também o caixa em **Empresa › Integrações** no painel. Remover pelo painel já basta: o caixa percebe e volta para "Gerar código".
+
+## Conexão que não se perde
+
+A identidade do caixa é um login anônimo do Firebase guardado no armazenamento da janela. Ele some
+se o armazenamento for apagado, e é outro quando o GerenciaAI abre por outra origem (instalado =
+`app://app`, pelo código-fonte = `http://localhost:5173`). Sem cuidado, o caixa volta a pedir código.
+
+- `createVerticeSync({ onConexao })` avisa sempre que o login ou o pareamento muda
+  (`{ uid, sessao, dispositivo, empresa, motivo }`). O GerenciaAI guarda isso no processo principal,
+  com o login cifrado (`electron/services/verticeConexaoService.js`).
+- Ao abrir, antes de criar o módulo: `precisaRestaurar(local, salva)` e
+  `restaurarConexaoSalva({ firebaseConfig, salva })` devolvem o mesmo login e o mesmo pareamento à janela.
+- Antes de largar um pareamento porque o servidor disse "não existe", o módulo confere de novo
+  (4 s). Desconectado de verdade no painel, o caixa mostra o motivo (`MSG_REMOVIDO`).
+- Teste: `npm run e2e -- conexao`.
