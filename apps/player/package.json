@@ -6,7 +6,11 @@
   "description": "Player do Vértice para TV Box, Smart TV Android, Windows e Linux",
   "vertice": {
     "updateUrl": "https://github.com/arthuraf2013-hue/vertice-releases/releases/latest/download/player-update.json",
-    "minNativeVersion": "0.3.0"
+    "minNativeVersion": "0.3.0",
+    "updateMirrors": [
+      "https://raw.githubusercontent.com/arthuraf2013-hue/vertice-releases/updates/player-update.json",
+      "https://cdn.jsdelivr.net/gh/arthuraf2013-hue/vertice-releases@updates/player-update.json"
+    ]
   },
   "type": "module",
   "scripts": {

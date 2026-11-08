@@ -402,6 +402,7 @@ app.whenReady().then(() => {
 
   updater = createUpdater({
     url: config.updateUrl || pkg.vertice?.updateUrl,
+    urls: config.updateUrl ? [] : pkg.vertice?.updateMirrors || [],
     onState: (s) => win && !win.isDestroyed() && win.webContents.send('vx:update', s),
   });
   updater.start();

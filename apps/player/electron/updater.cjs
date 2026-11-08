@@ -31,10 +31,17 @@ function nomeDoInstalador(url, version) {
   return /^[A-Za-z0-9._-]{1,120}\.exe$/.test(base) ? base : `Vertice-Player-Setup-${version}.exe`;
 }
 
+/** Espera depois de falhas seguidas: 5, 10, 20, 40 e no máximo 60 minutos. */
+const esperaDepoisDeFalhar = (n) => Math.min(60, 5 * 2 ** (n - 1)) * 60 * 1000;
+
 /**
- * @param {{ url: string, onState: (s: object) => void, beforeInstall?: () => Promise<void> | void }} opts
+ * @param {{ url: string, urls?: string[], onState: (s: object) => void, beforeInstall?: () => Promise<void> | void }} opts
+ *   urls: espelhos do manifesto (ramo "updates" no raw.githubusercontent e no jsDelivr).
  */
-function createUpdater({ url, onState, beforeInstall }) {
+function createUpdater({ url, urls = [], onState, beforeInstall }) {
+  const enderecos = [...new Set([url, ...urls].filter(Boolean))];
+  let falhas = 0;
+  let retentar = null;
   let state = { status: 'idle', current: app.getVersion(), available: null, lastCheck: null, error: null };
   let running = null;
   let timer = null;
@@ -44,7 +51,35 @@ function createUpdater({ url, onState, beforeInstall }) {
   };
   const dir = () => path.join(app.getPath('userData'), 'atualizacoes');
 
+  /** Lê o manifesto em todos os endereços e fica com o de versão mais nova. */
+  async function lerManifesto() {
+    const ler = async (u) => {
+      const res = await net.fetch(`${u}${u.includes('?') ? '&' : '?'}t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) throw new Error(`${u} respondeu ${res.status}`);
+      return res.json();
+    };
+    const r = await Promise.allSettled(enderecos.map(ler));
+    const ok = r.filter((x) => x.status === 'fulfilled' && typeof x.value?.version === 'string').map((x) => x.value);
+    if (!ok.length) throw new Error(`Nenhum servidor de atualização respondeu (${enderecos.length} tentados).`);
+    return ok.reduce((a, b) => (compareVersions(b.version, a.version) > 0 ? b : a));
+  }
+
+  /** Baixa do endereço principal; se falhar, dos espelhos (quando houver). */
   async function baixar(info) {
+    const lista = [...new Set([info.url, ...(Array.isArray(info.mirrors) ? info.mirrors : [])].filter((u) => /^https?:\/\//.test(u)))];
+    let erro = null;
+    for (const u of lista) {
+      try {
+        return await baixarDe({ ...info, url: u });
+      } catch (e) {
+        erro = e;
+        console.warn('[vx] atualização: falhou em', u, e.message || e);
+      }
+    }
+    throw erro || new Error('Sem endereço para baixar.');
+  }
+
+  async function baixarDe(info) {
     await fsp.mkdir(dir(), { recursive: true });
     const final = path.join(dir(), nomeDoInstalador(info.url, info.version));
     const part = `${final}.part`;
@@ -107,21 +142,26 @@ function createUpdater({ url, onState, beforeInstall }) {
       }
       set({ status: 'checking', error: null });
       try {
-        const res = await net.fetch(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`Manifesto respondeu ${res.status}`);
-        const m = await res.json();
+        const m = await lerManifesto();
         const win = m.windows;
         const versao = win?.version || m.version;
         if (!win?.url || compareVersions(versao, app.getVersion()) <= 0) {
+          falhas = 0;
           set({ status: 'uptodate', available: null, lastCheck: Date.now() });
           return state;
         }
         set({ status: 'downloading', available: versao, progress: 0, lastCheck: Date.now() });
         const arquivo = await baixar({ ...win, version: versao });
+        falhas = 0;
         await instalar(arquivo);
       } catch (e) {
         console.error('[vx] atualização:', e.message || e);
-        set({ status: 'error', error: String(e.message || e), lastCheck: Date.now() });
+        falhas += 1;
+        set({ status: 'error', error: String(e.message || e), lastCheck: Date.now(), retryAt: Date.now() + esperaDepoisDeFalhar(falhas) });
+        // Não espera a próxima hora: tenta de novo em 5, 10, 20… minutos.
+        clearTimeout(retentar);
+        retentar = setTimeout(check, esperaDepoisDeFalhar(falhas));
+        retentar.unref?.(); // não segura o processo (testes); no Electron o app segue aberto
       }
       return state;
     })().finally(() => { running = null; });

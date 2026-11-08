@@ -167,3 +167,25 @@ companies/{id}                      name, plan, screenLimit, storageQuotaMB, sto
 |---|---|---|
 | `advertisers/{id}` | membros | editor ou acima |
 | `videowalls/{id}` | membros | editor ou acima |
+
+## Atualização automática do player (com redundância)
+
+- **Publicação** (`.github/workflows/player-release.yml`, disparada por commit `release:`):
+  - Windows, APK e conteúdo Android saem em jobs separados. A release publica o que deu certo: uma falha no APK não segura o Windows nem o conteúdo das TVs Android.
+  - A chave do APK (`ANDROID_KEYSTORE_BASE64`) é opcional. Sem ela, ou com ela quebrada, a versão sai sem APK novo, com um aviso. O build limpa sujeira do texto colado (BOM, espaço não separável, linhas do `certutil`) e mostra a impressão da chave (a certa: `6fe4b187e02fcfe4`).
+  - Sem arquivo novo de um sistema, o manifesto mantém o da versão anterior (`scripts/player-manifest.mjs`).
+  - Se a parte nativa mudou e o APK não saiu, as TVs Android não aplicam o conteúdo novo (`minNativeCode`). Esperam a próxima versão com APK.
+- **Três caminhos para o manifesto e os arquivos pequenos:**
+  - GitHub Releases (`releases/latest/download/player-update.json`).
+  - Ramo `updates` pelo raw.githubusercontent.com.
+  - Ramo `updates` pelo jsDelivr.
+  - O ramo `updates` é refeito a cada versão (manifesto, conteúdo e APK). O instalador do Windows fica só na release.
+- **No player:**
+  - Lê o manifesto nos três endereços ao mesmo tempo e fica com a versão mais nova (`newestManifest`). Um espelho atrasado não faz voltar de versão.
+  - Baixa do principal e, se falhar, dos espelhos (`downloadUrls`).
+  - Erro: tenta de novo em 5, 10, 20, 40 e 60 minutos (`retryDelayMs`), e na hora em que a internet volta.
+  - Confere de hora em hora e logo depois de ligar. "Atualizar agora" no painel força a checagem.
+- **Aplicação:**
+  - Windows: instalador silencioso (`/S`).
+  - Android: conteúdo novo em silêncio, sem reinstalar. O APK novo (só quando a parte nativa muda) instala sozinho onde o Android deixa; senão espera o "Instalar" do operador.
+- **Painel › Downloads › Atualização das telas:** versão publicada (lida do ramo `updates`, que libera CORS), versão de cada TV e o botão "Atualizar agora" para as desatualizadas.

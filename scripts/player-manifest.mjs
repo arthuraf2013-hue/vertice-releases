@@ -1,7 +1,13 @@
 // Monta o player-update.json de uma versão (o arquivo que cada TV lê para se atualizar) e
 // cópias com nome fixo para o link "Baixar" do painel (…/releases/latest/download/…).
 //   node scripts/player-manifest.mjs <versão> <pasta com os arquivos> <dono/repositório> [notas] [manifesto anterior]
-// A pasta precisa ter: Vertice-Player-Setup-<v>.exe, Vertice-Player-<v>.apk e vertice-player-web-<v>.zip.
+// A pasta pode ter: Vertice-Player-Setup-<v>.exe, Vertice-Player-<v>.apk e vertice-player-web-<v>.zip.
+// Publica o que tiver (o instalador do Windows não espera o APK, e vice-versa). Sem APK novo,
+// o manifesto continua oferecendo o APK da versão anterior.
+//
+// Espelhos: cada arquivo pequeno (APK e conteúdo) também vai para o ramo "updates" do repositório,
+// servido pelo raw.githubusercontent.com e pelo jsDelivr. O manifesto lista esses endereços em
+// "mirrors", e as TVs tentam um depois do outro se o GitHub Releases falhar.
 //
 // Parte nativa (APK): o script tira uma "impressão digital" de tudo o que vai compilado no APK
 // (pasta android/, capacitor.config.json e as versões dos plugins do Capacitor). Se ela não mudou
@@ -19,16 +25,26 @@ if (!versao || !pasta || !repo) {
 }
 const pkg = JSON.parse(readFileSync(new URL('../apps/player/package.json', import.meta.url), 'utf8'));
 const base = `https://github.com/${repo}/releases/download/v${versao}`;
+/** Onde o ramo "updates" é servido (mesmos arquivos, outros servidores). */
+export const mirrorBases = (r) => [
+  `https://raw.githubusercontent.com/${r}/updates`,
+  `https://cdn.jsdelivr.net/gh/${r}@updates`,
+];
+const ESPELHO_ATE = 19 * 1024 * 1024; // o jsDelivr não serve arquivos maiores que ~20 MB
 
-function arquivo(nome, algoritmo, formato) {
+function arquivo(nome, algoritmo, formato, { espelho = false } = {}) {
   const p = path.join(pasta, nome);
   const dados = readFileSync(p);
+  const size = statSync(p).size;
+  const bases = espelho ? mirrorBases(repo).filter((b) => size <= ESPELHO_ATE || b.includes('raw.githubusercontent')) : [];
   return {
     url: `${base}/${nome}`,
     [algoritmo]: createHash(algoritmo).update(dados).digest(formato),
-    size: statSync(p).size,
+    size,
+    ...(bases.length ? { mirrors: bases.map((b) => `${b}/${nome}`) } : {}),
   };
 }
+const tem = (nome) => existsSync(path.join(pasta, nome));
 
 const RAIZ = new URL('../', import.meta.url);
 const IGNORAR_PASTAS = new Set(['build', '.gradle', '.idea', 'public']);
@@ -78,22 +94,32 @@ const exe = `Vertice-Player-Setup-${versao}.exe`;
 const apk = `Vertice-Player-${versao}.apk`;
 const web = `vertice-player-web-${versao}.zip`;
 
+if (!tem(exe) && !tem(apk) && !tem(web)) {
+  console.error('Nenhum arquivo para publicar.');
+  process.exit(1);
+}
 const manifesto = {
   version: versao,
   nativeHash,
   publishedAt: new Date().toISOString(),
   notes: String(notas).replace(/^release:\s*/i, '').split('\n')[0].slice(0, 300),
-  windows: { version: versao, ...arquivo(exe, 'sha512', 'base64') },
-  android: { version: versao, versionCode: versionCode(versao), ...arquivo(apk, 'sha256', 'hex') },
-  web: {
+  // Sem arquivo novo, fica o da versão anterior (as TVs daquele sistema só não sobem de versão).
+  windows: tem(exe) ? { version: versao, ...arquivo(exe, 'sha512', 'base64') } : prev?.windows || null,
+  android: tem(apk) ? { version: versao, versionCode: versionCode(versao), ...arquivo(apk, 'sha256', 'hex', { espelho: true }) } : prev?.android || null,
+  web: tem(web) ? {
     version: versao,
-    ...arquivo(web, 'sha256', 'hex'),
+    ...arquivo(web, 'sha256', 'hex', { espelho: true }),
     // O conteúdo novo só vai por cima de um APK que já tem a parte nativa que ele usa.
+    // (Parte nativa mudou e o APK novo não saiu? As TVs Android esperam: não aplicam o conteúdo.)
     minNativeCode,
-  },
+  } : prev?.web || null,
+  mirrors: mirrorBases(repo).map((b) => `${b}/player-update.json`),
 };
 
 writeFileSync(path.join(pasta, 'player-update.json'), `${JSON.stringify(manifesto, null, 2)}\n`);
-copyFileSync(path.join(pasta, apk), path.join(pasta, 'Vertice-Player.apk'));
-copyFileSync(path.join(pasta, exe), path.join(pasta, 'Vertice-Player-Setup.exe'));
+if (tem(apk)) copyFileSync(path.join(pasta, apk), path.join(pasta, 'Vertice-Player.apk'));
+if (tem(exe)) copyFileSync(path.join(pasta, exe), path.join(pasta, 'Vertice-Player-Setup.exe'));
+for (const [nome, ok] of [['Windows', tem(exe)], ['APK', tem(apk)], ['conteúdo Android', tem(web)]]) {
+  if (!ok) console.log(`::warning::Esta versão saiu sem ${nome} novo (ver o job que falhou). As TVs continuam com o anterior.`);
+}
 console.log(JSON.stringify(manifesto, null, 2));

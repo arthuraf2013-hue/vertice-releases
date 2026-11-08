@@ -253,3 +253,26 @@ describe('video wall', () => {
     expect(off.fallback.map((i) => i.mediaId)).toEqual(['m1']);
   });
 });
+
+import { newestManifest, downloadUrls, retryDelayMs, planUpdate } from './release.js';
+
+describe('atualização com redundância', () => {
+  it('fica com o manifesto mais novo entre os que responderam', () => {
+    expect(newestManifest([null, { version: '0.3.4' }, { version: '0.3.10' }, { erro: 1 }, { version: '0.3.9' }]).version).toBe('0.3.10');
+    expect(newestManifest([null, undefined])).toBe(null);
+  });
+  it('lista o endereço principal e os espelhos, só http(s) e sem repetir', () => {
+    expect(downloadUrls({ url: 'https://a/x.zip', mirrors: ['https://b/x.zip', 'https://a/x.zip', 'ftp://c/x.zip'] }))
+      .toEqual(['https://a/x.zip', 'https://b/x.zip']);
+    expect(downloadUrls(null)).toEqual([]);
+  });
+  it('tenta de novo logo depois de falhar, espaçando até 1 hora', () => {
+    expect([0, 1, 2, 3, 4, 5, 9].map((n) => retryDelayMs(n) / 60_000)).toEqual([0, 5, 10, 20, 40, 60, 60]);
+  });
+  it('versão publicada sem APK novo: a TV Android recebe o conteúdo se a parte nativa não mudou', () => {
+    const m = { version: '0.3.5', android: null, web: { version: '0.3.5', url: 'https://x/w.zip', minNativeCode: 300 } };
+    expect(planUpdate(m, { shell: 'android', version: '0.3.2', nativeVersion: '0.3.2' })).toEqual({ web: m.web });
+    const nativo = { ...m, web: { ...m.web, minNativeCode: 305 } };
+    expect(planUpdate(nativo, { shell: 'android', version: '0.3.2', nativeVersion: '0.3.2' })).toEqual({});
+  });
+});

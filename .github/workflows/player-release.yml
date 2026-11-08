@@ -57,7 +57,7 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$PLAYER_ENV" ]; then echo "::error::Falta o secret PLAYER_ENV (conteúdo do apps/player/.env)."; exit 1; fi
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then echo "::error::Falta o secret ANDROID_KEYSTORE_BASE64 (chave do APK)."; exit 1; fi
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then echo "::warning::Falta o secret ANDROID_KEYSTORE_BASE64 (chave do APK): a versão sai sem APK novo."; fi
 
       - run: npm ci
 
@@ -138,48 +138,69 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Configuração do Firebase e chave do APK
+      - name: Configuração do Firebase
         env:
           PLAYER_ENV: ${{ secrets.PLAYER_ENV }}
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           # Texto copiado no Windows (Set-Clipboard) chega com \r e quebra de linha no fim: tira antes de usar.
           printf '%s\n' "$PLAYER_ENV" | tr -d '\r' > apps/player/.env
           grep -q '^VITE_' apps/player/.env || { echo "::error::O secret PLAYER_ENV não tem as linhas VITE_ do apps/player/.env."; exit 1; }
+
+      - name: Chave do APK
+        id: chave
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          # Sem a chave certa, esta versão sai sem APK novo, mas o conteúdo das TVs Android e o
+          # instalador do Windows saem assim mesmo (a chave não segura a atualização de ninguém).
+          K=apps/player/android/app/vertice-debug.keystore
           # Texto colado pode trazer sujeira invisível (espaço não separável, BOM, aspas) ou as linhas
-          # "-----BEGIN/END-----" do certutil: fica só o que é base64. O keytool abaixo confere a chave.
-          B64=$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '\r' | sed '/^-----/d' | tr -cd 'A-Za-z0-9+/=')
+          # "-----BEGIN/END-----" do certutil: fica só o que é base64. O keytool confere a chave.
+          B64=$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '\r' | sed '/-----/d' | tr -cd 'A-Za-z0-9+/=')
           while [ $(( ${#B64} % 4 )) -ne 0 ]; do B64="$B64="; done
-          echo "Chave do APK: ${#ANDROID_KEYSTORE_BASE64} caracteres no secret, ${#B64} depois de limpar (a do PC dá 3576)."
-          printf '%s' "$B64" | base64 -d > apps/player/android/app/vertice-debug.keystore \
-            || { echo "::error::O secret ANDROID_KEYSTORE_BASE64 não é um base64 válido (${#B64} caracteres depois de limpar; o certo é 3576). Cole de novo o conteúdo de .atualizacoes/keystore-base64.txt."; exit 1; }
-          echo "Impressão da chave (sha256): $(sha256sum apps/player/android/app/vertice-debug.keystore | cut -c1-16) (a do PC: 6fe4b187e02fcfe4)"
-          keytool -list -keystore apps/player/android/app/vertice-debug.keystore -storepass android -alias androiddebugkey > /dev/null \
-            || { echo "::error::A chave do APK (ANDROID_KEYSTORE_BASE64) não abre com a senha/apelido esperados (android / androiddebugkey)."; exit 1; }
+          echo "Chave do APK: ${#ANDROID_KEYSTORE_BASE64} caracteres no secret, ${#B64} depois de limpar (a certa dá 3576)."
+          if printf '%s' "$B64" | base64 -d > "$K" 2>/dev/null \
+             && keytool -list -keystore "$K" -storepass android -alias androiddebugkey > /dev/null 2>&1; then
+            echo "Impressão da chave (sha256): $(sha256sum "$K" | cut -c1-16) (a certa: 6fe4b187e02fcfe4)"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            rm -f "$K"
+            echo "::warning::A chave do APK (secret ANDROID_KEYSTORE_BASE64) não abriu. Esta versão sai sem APK novo; o conteúdo das TVs Android e o Windows saem normalmente. Cole de novo a chave no secret."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - run: npm ci
 
+      - name: Conteúdo do player (vai para as TVs Android sem reinstalar)
+        working-directory: apps/player
+        run: |
+          npx vite build || { echo "::error::O build do player (vite) falhou."; exit 1; }
+          npx cap sync android || { echo "::error::cap sync android falhou."; exit 1; }
+
       - name: Android SDK
+        if: steps.chave.outputs.ok == 'true'
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null \
             || { echo "::error::Não consegui instalar o Android SDK 36 no runner."; exit 1; }
 
       - name: Gerar o APK
-        working-directory: apps/player
+        if: steps.chave.outputs.ok == 'true'
+        id: apk
+        continue-on-error: true
+        working-directory: apps/player/android
         run: |
-          npx vite build || { echo "::error::O build do player (vite) falhou."; exit 1; }
-          npx cap sync android || { echo "::error::cap sync android falhou."; exit 1; }
-          cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon || { echo "::error::O Gradle não gerou o APK (ver o log do passo Gerar o APK)."; exit 1; }
+          ./gradlew assembleDebug --no-daemon || { echo "::warning::O Gradle não gerou o APK; a versão sai sem APK novo (ver o log deste passo)."; exit 1; }
 
       - name: Juntar os arquivos
         run: |
           V="${{ needs.versao.outputs.version }}"
           mkdir -p out
-          cp apps/player/android/app/build/outputs/apk/debug/app-debug.apk "out/Vertice-Player-$V.apk"
+          A=apps/player/android/app/build/outputs/apk/debug/app-debug.apk
+          if [ -f "$A" ]; then cp "$A" "out/Vertice-Player-$V.apk"; fi
           # O pacote de conteúdo é exatamente o que vai dentro do APK (assets/public).
           (cd apps/player/android/app/src/main/assets/public && zip -qr -X "$GITHUB_WORKSPACE/out/vertice-player-web-$V.zip" .)
+          ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
@@ -190,6 +211,8 @@ jobs:
   publicar:
     name: Publicar a release
     needs: [versao, windows, android]
+    # Publica o que deu certo: Windows sem Android, ou Android sem Windows, já atualiza aquelas TVs.
+    if: ${{ always() && needs.versao.result == 'success' && (needs.windows.result == 'success' || needs.android.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -201,6 +224,7 @@ jobs:
           node-version: 22
 
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           path: dist-release
           merge-multiple: true
@@ -211,7 +235,9 @@ jobs:
         run: |
           V="${{ needs.versao.outputs.version }}"
           # Manifesto da versão anterior: decide se o APK precisa ser reinstalado.
-          curl -fsSL -o anterior.json "https://github.com/${{ github.repository }}/releases/latest/download/player-update.json" || rm -f anterior.json
+          curl -fsSL -o anterior.json "https://github.com/${{ github.repository }}/releases/latest/download/player-update.json" \
+            || curl -fsSL -o anterior.json "https://raw.githubusercontent.com/${{ github.repository }}/updates/player-update.json" \
+            || rm -f anterior.json
           node scripts/player-manifest.mjs "$V" dist-release "${{ github.repository }}" "$NOTAS" anterior.json
 
       - name: Criar a release
@@ -221,3 +247,24 @@ jobs:
         run: |
           V="${{ needs.versao.outputs.version }}"
           gh release create "v$V" dist-release/* --title "Vértice Player $V" --notes "${NOTAS:-Versão $V}" --latest
+
+      - name: Espelho das atualizações (ramo updates)
+        continue-on-error: true
+        run: |
+          # Segundo e terceiro caminho para as TVs: raw.githubusercontent.com e jsDelivr servem este ramo.
+          # Só o manifesto e os arquivos pequenos (o instalador do Windows fica só na release).
+          V="${{ needs.versao.outputs.version }}"
+          mkdir espelho
+          cp dist-release/player-update.json espelho/
+          for f in "vertice-player-web-$V.zip" "Vertice-Player-$V.apk"; do
+            if [ -f "dist-release/$f" ] && [ "$(stat -c%s "dist-release/$f")" -lt 95000000 ]; then cp "dist-release/$f" espelho/; fi
+          done
+          cd espelho
+          git init -q -b updates
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Atualização $V"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" updates
+          # O jsDelivr guarda cópia por até 12 h: pede para renovar o manifesto agora.
+          curl -fsS "https://purge.jsdelivr.net/gh/${{ github.repository }}@updates/player-update.json" > /dev/null || true

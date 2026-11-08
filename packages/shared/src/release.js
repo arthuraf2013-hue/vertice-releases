@@ -42,3 +42,27 @@ export function planUpdate(manifest, { shell, version, nativeVersion, badWeb = [
   if (compareVersions(manifest.version, version) > 0) plan.reload = true;
   return plan;
 }
+
+/* ---------------- Redundância da atualização ---------------- */
+
+/**
+ * Entre os manifestos que responderam (GitHub Releases e os espelhos), fica o de versão mais
+ * nova: um espelho atrasado nunca faz a TV voltar de versão, e um servidor fora do ar não trava.
+ */
+export function newestManifest(list = []) {
+  return list
+    .filter((m) => m && typeof m === 'object' && typeof m.version === 'string')
+    .reduce((best, m) => (!best || compareVersions(m.version, best.version) > 0 ? m : best), null);
+}
+
+/** Endereços para baixar um arquivo do manifesto: o principal e depois os espelhos, sem repetir. */
+export function downloadUrls(asset) {
+  if (!asset?.url) return [];
+  return [...new Set([asset.url, ...(Array.isArray(asset.mirrors) ? asset.mirrors : [])].filter((u) => /^https?:\/\//.test(u)))];
+}
+
+/** Espera até tentar de novo depois de falhas seguidas: 5, 10, 20, 40 e no máximo 60 minutos. */
+export function retryDelayMs(failures) {
+  if (!failures) return 0;
+  return Math.min(60, 5 * 2 ** (failures - 1)) * 60_000;
+}

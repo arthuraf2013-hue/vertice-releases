@@ -115,3 +115,30 @@ test('fora do instalador (npm run electron:start) não tenta atualizar', async (
   assert.equal(st.status, 'dev');
   assert.equal(chamadas.spawn.length, 0);
 });
+
+test('redundância: servidor principal fora do ar, manifesto e instalador vêm do espelho', async () => {
+  const exe = crypto.randomBytes(30_000);
+  const sha512 = crypto.createHash('sha512').update(exe).digest('base64');
+  const { s, base } = await servidor({});
+  s.removeAllListeners('request');
+  const pedidos = [];
+  s.on('request', (req, res) => {
+    const u = req.url.split('?')[0];
+    pedidos.push(u);
+    if (u.startsWith('/principal/')) return res.writeHead(503).end(); // GitHub Releases fora do ar
+    const manifesto = { version: '0.3.2', windows: { version: '0.3.2', url: `${base}/principal/setup.exe`, mirrors: [`${base}/espelho/setup.exe`], sha512 } };
+    const velho = { version: '0.3.0', windows: { version: '0.3.0', url: `${base}/x.exe` } };
+    const body = u === '/espelho/setup.exe' ? exe : u === '/velho/m.json' ? Buffer.from(JSON.stringify(velho)) : Buffer.from(JSON.stringify(manifesto));
+    res.writeHead(200, { 'Content-Length': body.length }).end(body);
+  });
+  const { mod, chamadas } = carregar({ version: '0.3.0' });
+  // Um espelho atrasado (0.3.0) não ganha do que tem a versão nova.
+  const up = mod.createUpdater({ url: `${base}/principal/m.json`, urls: [`${base}/velho/m.json`, `${base}/espelho/m.json`], onState: () => {} });
+  await up.check();
+  await esperar(700);
+  s.close();
+  assert.ok(pedidos.includes('/principal/setup.exe'), 'tentou o principal primeiro');
+  assert.ok(pedidos.includes('/espelho/setup.exe'), 'caiu para o espelho');
+  assert.equal(chamadas.spawn.length, 1);
+  assert.equal(fs.readFileSync(chamadas.spawn[0].cmd).length, exe.length);
+});

@@ -15,7 +15,7 @@
     "emulators": "firebase emulators:start --only auth,firestore --project demo-vertice",
     "build": "npm run build -w @vertice/panel && npm run build -w @vertice/player",
     "build:hosting": "npm run build && node scripts/build-hosting.mjs",
-    "test": "npm run test -w @vertice/shared && node --test apps/player/electron/janela.test.cjs",
+    "test": "npm run test -w @vertice/shared && node --test apps/player/electron/janela.test.cjs apps/player/electron/updater.test.cjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-vertice \"node --test firebase/tests/rules.test.mjs\"",
     "e2e": "node scripts/e2e.mjs",
     "deploy:rules": "firebase deploy --only firestore",
