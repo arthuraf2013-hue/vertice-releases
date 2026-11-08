@@ -1,9 +1,13 @@
-// Atualização automática do Vértice Player no Windows.
+// Atualização automática dos apps Windows do Vértice (player e painel).
 //
 // Lê o manifesto publicado pelo GitHub Actions (player-update.json), baixa o instalador novo,
-// confere o SHA-512 e instala em silêncio (/S). O instalador fecha o player, atualiza e abre de
-// novo sozinho (--force-run): a TV fica uns 15 segundos sem conteúdo e volta na versão nova.
-// Não depende de pacotes de node_modules (o .exe só leva dist/ e electron/).
+// confere o SHA-512 e instala em silêncio (/S). O instalador fecha o app, atualiza e abre de
+// novo sozinho (--force-run).
+// - Player (chave "windows"): instala assim que baixa; a TV fica uns 15 s sem conteúdo.
+// - Painel (chave "painel", autoInstall: false): baixa e espera. A pessoa clica em "Reiniciar e
+//   atualizar", ou a atualização entra quando ela fechar o painel (sem abrir de novo).
+// Não depende de pacotes de node_modules (o .exe só leva dist/ e electron/). O painel leva uma
+// cópia deste arquivo no instalador (ver "files" em apps/panel/package.json).
 const { app, net } = require('electron');
 const { spawn } = require('node:child_process');
 const crypto = require('node:crypto');
@@ -26,25 +30,30 @@ function compareVersions(a = '0', b = '0') {
 }
 
 /** Nome de arquivo seguro para o instalador baixado. */
-function nomeDoInstalador(url, version) {
+function nomeDoInstalador(url, version, padrao = 'Vertice-Player-Setup') {
   const base = decodeURIComponent(String(url).split('?')[0].split('/').pop() || '');
-  return /^[A-Za-z0-9._-]{1,120}\.exe$/.test(base) ? base : `Vertice-Player-Setup-${version}.exe`;
+  return /^[A-Za-z0-9._-]{1,120}\.exe$/.test(base) ? base : `${padrao}-${version}.exe`;
 }
 
 /** Espera depois de falhas seguidas: 5, 10, 20, 40 e no máximo 60 minutos. */
 const esperaDepoisDeFalhar = (n) => Math.min(60, 5 * 2 ** (n - 1)) * 60 * 1000;
 
 /**
- * @param {{ url: string, urls?: string[], onState: (s: object) => void, beforeInstall?: () => Promise<void> | void }} opts
+ * @param {{ url: string, urls?: string[], onState: (s: object) => void, beforeInstall?: () => Promise<void> | void,
+ *   chave?: string, nome?: string, autoInstall?: boolean, primeiraChecagemMs?: number }} opts
  *   urls: espelhos do manifesto (ramo "updates" no raw.githubusercontent e no jsDelivr).
+ *   chave: qual app ler no manifesto ("windows" = player, "painel" = painel).
+ *   autoInstall: false = só baixa e fica "ready" até chamar install() (ou instalarAoSair()).
  */
-function createUpdater({ url, urls = [], onState, beforeInstall }) {
+function createUpdater({ url, urls = [], onState, beforeInstall, chave = 'windows', nome = 'Vertice-Player-Setup', autoInstall = true, primeiraChecagemMs = PRIMEIRA_CHECAGEM_MS }) {
   const enderecos = [...new Set([url, ...urls].filter(Boolean))];
   let falhas = 0;
   let retentar = null;
   let state = { status: 'idle', current: app.getVersion(), available: null, lastCheck: null, error: null };
   let running = null;
   let timer = null;
+  /** Instalador baixado e conferido, esperando a vez (autoInstall: false). */
+  let pronto = null;
   const set = (patch) => {
     state = { ...state, ...patch };
     try { onState?.(state); } catch { /* janela fechando */ }
@@ -81,7 +90,7 @@ function createUpdater({ url, urls = [], onState, beforeInstall }) {
 
   async function baixarDe(info) {
     await fsp.mkdir(dir(), { recursive: true });
-    const final = path.join(dir(), nomeDoInstalador(info.url, info.version));
+    const final = path.join(dir(), nomeDoInstalador(info.url, info.version, nome));
     const part = `${final}.part`;
     const res = await net.fetch(info.url, { cache: 'no-store' });
     if (!res.ok || !res.body) throw new Error(`Download respondeu ${res.status}`);
@@ -123,13 +132,36 @@ function createUpdater({ url, urls = [], onState, beforeInstall }) {
     return final;
   }
 
-  async function instalar(arquivo) {
+  async function instalar(arquivo, { abrirDepois = true, sair = true } = {}) {
     set({ status: 'installing' });
     try { await beforeInstall?.(); } catch { /* segue */ }
-    // /S = silencioso; --updated = atualização; --force-run = abre o player de novo no fim.
-    const filho = spawn(arquivo, ['/S', '--updated', '--force-run'], { detached: true, stdio: 'ignore' });
+    // /S = silencioso; --updated = atualização; --force-run = abre o app de novo no fim.
+    const args = ['/S', '--updated', ...(abrirDepois ? ['--force-run'] : [])];
+    const filho = spawn(arquivo, args, { detached: true, stdio: 'ignore' });
     filho.unref();
-    setTimeout(() => app.quit(), 500);
+    if (sair) setTimeout(() => app.quit(), 500);
+  }
+
+  /** Instala a versão já baixada agora (botão "Reiniciar e atualizar"). */
+  async function install() {
+    if (!pronto) return false;
+    const arquivo = pronto;
+    pronto = null;
+    await instalar(arquivo);
+    return true;
+  }
+
+  /** Chamado quando o app vai fechar: se houver versão baixada, instala sem abrir de novo. */
+  function instalarAoSair() {
+    if (!pronto) return false;
+    const arquivo = pronto;
+    pronto = null;
+    try {
+      spawn(arquivo, ['/S', '--updated'], { detached: true, stdio: 'ignore' }).unref();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Procura versão nova e, se houver, baixa e instala. `force` ignora o intervalo. */
@@ -143,17 +175,25 @@ function createUpdater({ url, urls = [], onState, beforeInstall }) {
       set({ status: 'checking', error: null });
       try {
         const m = await lerManifesto();
-        const win = m.windows;
+        const win = m[chave];
         const versao = win?.version || m.version;
         if (!win?.url || compareVersions(versao, app.getVersion()) <= 0) {
           falhas = 0;
           set({ status: 'uptodate', available: null, lastCheck: Date.now() });
           return state;
         }
+        if (pronto && state.available === versao) {
+          set({ status: 'ready', lastCheck: Date.now() });
+          return state;
+        }
         set({ status: 'downloading', available: versao, progress: 0, lastCheck: Date.now() });
         const arquivo = await baixar({ ...win, version: versao });
         falhas = 0;
-        await instalar(arquivo);
+        if (autoInstall) await instalar(arquivo);
+        else {
+          pronto = arquivo;
+          set({ status: 'ready', progress: 100 });
+        }
       } catch (e) {
         console.error('[vx] atualização:', e.message || e);
         falhas += 1;
@@ -171,11 +211,11 @@ function createUpdater({ url, urls = [], onState, beforeInstall }) {
   function start() {
     // Limpa instaladores antigos.
     fsp.rm(dir(), { recursive: true, force: true }).catch(() => {});
-    setTimeout(check, PRIMEIRA_CHECAGEM_MS);
+    setTimeout(check, primeiraChecagemMs);
     timer = setInterval(check, INTERVALO_MS);
   }
 
-  return { start, check, getState: () => state, stop: () => clearInterval(timer) };
+  return { start, check, install, instalarAoSair, getState: () => state, stop: () => clearInterval(timer) };
 }
 
 module.exports = { createUpdater, compareVersions, nomeDoInstalador };

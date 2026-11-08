@@ -150,7 +150,7 @@ export function Downloads() {
         <Card title="Painel no computador" icon="monitor">
           <p className="vx-muted">O mesmo painel, instalado no Windows: abre direto, fica na barra de tarefas e é ideal para a Sala de controle no monitor do escritório.</p>
           <a className="vx-btn" href={downloads.windows}><Icon name="download" />Baixar para Windows</a>
-          <p className="vx-help">O painel web continua funcionando em qualquer navegador.</p>
+          <p className="vx-help">Instalado, ele se atualiza: baixa a versão nova sozinho e instala quando você clica em "Reiniciar e atualizar" (no rodapé do menu) ou fecha o painel. O painel web continua funcionando em qualquer navegador.</p>
         </Card>
       </div>
       <PlayerUpdates />

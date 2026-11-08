@@ -29,7 +29,7 @@ export const downloads = {
   android: env.VITE_DOWNLOAD_ANDROID || `${RELEASES}/Vertice-Player.apk`,
   playerWindows: env.VITE_DOWNLOAD_PLAYER_WINDOWS || `${RELEASES}/Vertice-Player-Setup.exe`,
   web: env.VITE_PLAYER_WEB_URL || 'https://vertice.vettasistemas.com.br/tv/',
-  windows: env.VITE_DOWNLOAD_WINDOWS || 'https://vertice.vettasistemas.com.br/downloads/vertice-painel-setup.exe',
+  windows: env.VITE_DOWNLOAD_WINDOWS || `${RELEASES}/Vertice-Painel-Setup.exe`,
 };
 
 /** WhatsApp comercial da Vetta (só números, com DDI). */

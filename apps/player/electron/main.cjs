@@ -14,8 +14,10 @@
 //
 // Atualização automática: ver electron/updater.cjs (instala em silêncio quando sai versão nova).
 //
-// Janela: abre no mesmo monitor, posição e tamanho da última vez, em tela cheia ou em janela
-// como estava (electron/janela.cjs). Fora da tela cheia tem barra de título para arrastar.
+// Janela: sem moldura do Windows. Em tela cheia ela tem o tamanho exato do monitor; passando o
+// mouse no topo aparece uma barra para arrastar o player até outro monitor (ao soltar, ele
+// preenche o monitor onde o mouse estava). Reabre no mesmo monitor da última vez, e se aquele
+// monitor estiver desligado abre no principal e volta para ele quando ligar (electron/janela.cjs).
 //
 // Parâmetros: --janela abre em janela (bom para testar no seu PC).
 // Configuração: vertice.config.json (ao lado do .exe ou em %APPDATA%\\Vértice Player).
@@ -28,7 +30,7 @@ const { Readable } = require('node:stream');
 const { pathToFileURL } = require('node:url');
 const { loadDesktopConfig, configArg } = require('./desktop-config.cjs');
 const { createUpdater } = require('./updater.cjs');
-const { escolherPosicao, proximoMonitor, centralizar, lerEstado, lembrarJanela } = require('./janela.cjs');
+const { escolherPosicao, monitorDoEncaixe, monitorSalvo, mesmasMedidas, centralizar, lerEstado, lembrarJanela, PADRAO } = require('./janela.cjs');
 const pkg = require('../package.json');
 
 const DEV_URL = process.env.VERTICE_DEV_URL;
@@ -59,6 +61,10 @@ let win = null;
 let config = {};
 let updater = null;
 let salvarJanela = () => {};
+/** Tela cheia (sem moldura, do tamanho do monitor) ou janela comum. */
+let telaCheia = true;
+/** Monitor escolhido pela pessoa: { id, bounds }. Continua salvo se ele for desligado. */
+let preferido = null;
 
 const ARQUIVO_JANELA = () => path.join(app.getPath('userData'), 'janela.json');
 const monitores = () => screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds, workArea: d.workArea }));
@@ -74,18 +80,21 @@ function deviceInfo() {
 }
 
 function createWindow() {
-  const pos = escolherPosicao(lerEstado(ARQUIVO_JANELA()), monitores(), screen.getPrimaryDisplay());
-  const cheia = pos.fullscreen && !WINDOWED;
+  const salvo = lerEstado(ARQUIVO_JANELA());
+  const pos = escolherPosicao(salvo, monitores(), screen.getPrimaryDisplay());
+  telaCheia = pos.fullscreen && !WINDOWED;
+  preferido = salvo?.displayBounds ? { id: salvo.displayId, bounds: salvo.displayBounds } : null;
+  const inicio = telaCheia || !WINDOWED ? pos : { ...pos, ...centralizar(PADRAO, screen.getPrimaryDisplay().workArea) };
   win = new BrowserWindow({
-    // A janela nasce no lugar salvo; a tela cheia vai para o monitor onde ela está.
-    x: pos.x,
-    y: pos.y,
-    width: pos.width,
-    height: pos.height,
-    fullscreen: cheia,
-    kiosk: cheia,
-    // Em tela cheia o Windows esconde a barra; em janela ela aparece para arrastar, minimizar e fechar.
-    frame: true,
+    x: inicio.x,
+    y: inicio.y,
+    width: inicio.width,
+    height: inicio.height,
+    // Sem a moldura do Windows: a barra do topo (no player) faz o papel dela e some sozinha.
+    frame: false,
+    resizable: !telaCheia,
+    maximizable: !telaCheia,
+    fullscreenable: false,
     autoHideMenuBar: true,
     backgroundColor: '#0b1017',
     title: 'Vértice Player',
@@ -100,9 +109,16 @@ function createWindow() {
     },
   });
   win.setMenu(null);
-  if (pos.maximized && !cheia) win.maximize();
-  win.once('ready-to-show', () => win.show());
-  salvarJanela = lembrarJanela(win, screen, ARQUIVO_JANELA());
+  if (pos.maximized && !telaCheia) win.maximize();
+  if (telaCheia) win.setAlwaysOnTop(true, 'screen-saver'); // por cima da barra de tarefas
+  win.once('ready-to-show', () => {
+    if (telaCheia) preencher(monitorAtual()); // DPI diferente entre monitores: confirma o tamanho
+    win.show();
+  });
+  salvarJanela = lembrarJanela(win, screen, ARQUIVO_JANELA(), {
+    telaCheia: () => telaCheia,
+    preferido: () => (telaCheia ? preferido : null),
+  });
 
   // Nada de abrir janelas nem sair do player.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -115,13 +131,19 @@ function createWindow() {
     const k = input.key.toLowerCase();
     if (k === 'q') app.quit();
     else if (k === 'r') win.webContents.reloadIgnoringCache();
-    else if (k === 'j') setTelaCheia(!win.isKiosk());
+    else if (k === 'j') setTelaCheia(!telaCheia);
     else return;
     e.preventDefault();
   });
-  win.on('enter-full-screen', avisarJanela);
-  win.on('leave-full-screen', avisarJanela);
-  win.on('restore', avisarJanela);
+  // A pessoa soltou a janela depois de arrastar (ou o Windows encaixou ela num canto):
+  // em tela cheia, ela preenche o monitor onde o mouse estava.
+  win.on('moved', () => soltou());
+  win.on('resized', () => soltou());
+  win.on('maximize', () => telaCheia && soltou());
+  win.on('restore', () => {
+    if (telaCheia) preencher(monitorAtual());
+    avisarJanela();
+  });
 
   // Recuperação: página caiu ou travou → recarrega.
   win.webContents.on('render-process-gone', (_e, d) => {
@@ -139,38 +161,72 @@ function createWindow() {
 
 /* ---------- Menu do operador ---------- */
 
+const monitorAtual = () => screen.getDisplayMatching(win.getBounds());
+
+/** Ocupa o monitor inteiro (duas vezes: entre monitores com escala diferente a primeira erra). */
+function preencher(monitor) {
+  if (!win || win.isDestroyed() || !monitor) return;
+  if (win.isMaximized()) win.unmaximize();
+  win.setBounds(monitor.bounds);
+  setTimeout(() => {
+    if (win && !win.isDestroyed() && telaCheia && !mesmasMedidas(win.getBounds(), monitor.bounds)) win.setBounds(monitor.bounds);
+  }, 120);
+}
+
+/** Fim de um arraste: decide o monitor e guarda a escolha. */
+function soltou() {
+  if (!win || win.isDestroyed()) return;
+  if (!telaCheia) {
+    const m = monitorAtual();
+    preferido = { id: m.id, bounds: m.bounds };
+    salvarJanela();
+    return;
+  }
+  const alvo = monitorDoEncaixe(monitores(), screen.getCursorScreenPoint(), win.getBounds(), screen.getPrimaryDisplay());
+  preferido = { id: alvo.id, bounds: alvo.bounds };
+  preencher(alvo);
+  setTimeout(salvarJanela, 300);
+}
+
+/** Monitor ligado, desligado ou com outra resolução. */
+function monitoresMudaram(_e, mudou) {
+  if (!win || win.isDestroyed()) return;
+  if (telaCheia) {
+    // Voltou o monitor que a pessoa escolheu (a TV ligou depois do PC): vai para ele.
+    const lista = monitores();
+    const salvo = preferido && monitorSalvo({ displayId: preferido.id, displayBounds: preferido.bounds }, lista);
+    const alvo = salvo || monitorDoEncaixe(lista, null, win.getBounds(), screen.getPrimaryDisplay());
+    if (salvo && mudou?.id === salvo.id) preferido = { id: salvo.id, bounds: salvo.bounds };
+    if (!mesmasMedidas(win.getBounds(), alvo.bounds)) preencher(alvo);
+  }
+  avisarJanela();
+}
+
 function setTelaCheia(cheia) {
   if (!win || win.isDestroyed()) return;
-  win.setKiosk(cheia);
-  win.setFullScreen(cheia);
+  const monitor = monitorAtual();
+  telaCheia = cheia;
+  win.setResizable(!cheia);
+  win.setMaximizable(!cheia);
+  if (cheia) {
+    preferido = { id: monitor.id, bounds: monitor.bounds };
+    preencher(monitor);
+    win.setAlwaysOnTop(true, 'screen-saver');
+  } else {
+    win.setAlwaysOnTop(false);
+    win.setBounds(centralizar(PADRAO, monitor.workArea));
+  }
   avisarJanela();
+  setTimeout(salvarJanela, 300);
 }
 
 function estadoJanela() {
   if (!win || win.isDestroyed()) return { fullscreen: true, monitores: 1 };
-  return { fullscreen: win.isKiosk() || win.isFullScreen(), monitores: screen.getAllDisplays().length };
+  return { fullscreen: telaCheia, monitores: screen.getAllDisplays().length };
 }
 
 function avisarJanela() {
   if (win && !win.isDestroyed()) win.webContents.send('vx:janela', estadoJanela());
-}
-
-/** Leva o player para o próximo monitor, mantendo tela cheia ou janela. */
-function trocarMonitor() {
-  if (!win || win.isDestroyed()) return false;
-  const lista = monitores();
-  const alvo = proximoMonitor(lista, screen.getDisplayMatching(win.getBounds()).id);
-  if (!alvo) return false;
-  const cheia = win.isKiosk() || win.isFullScreen();
-  if (cheia) {
-    win.setKiosk(false);
-    win.setFullScreen(false);
-  }
-  if (win.isMaximized()) win.unmaximize();
-  win.setBounds(centralizar(win.getNormalBounds(), alvo.workArea));
-  if (cheia) setTelaCheia(true);
-  salvarJanela();
-  return true;
 }
 
 // Só estes endereços do Windows podem ser abertos pelo menu (nada de URL vinda da página).
@@ -193,13 +249,9 @@ ipcMain.handle('vx:app', (_e, acao) => {
     app.relaunch();
     app.exit(0);
   } else if (acao === 'quit') app.quit();
-  else if (acao === 'minimize') {
-    // Em quiosque o Windows não minimiza: sai da tela cheia antes.
-    setTelaCheia(false);
-    win.minimize();
-  } else if (acao === 'window') setTelaCheia(false);
+  else if (acao === 'minimize') win.minimize();
+  else if (acao === 'window') setTelaCheia(false);
   else if (acao === 'fullscreen') setTelaCheia(true);
-  else if (acao === 'monitor') return trocarMonitor();
   else return false;
   return true;
 });
@@ -396,9 +448,10 @@ app.whenReady().then(() => {
 
   config = loadDesktopConfig(app);
   createWindow();
-  // Ligou/desligou um monitor: o menu mostra ou esconde "Trocar de monitor".
-  screen.on('display-added', avisarJanela);
-  screen.on('display-removed', avisarJanela);
+  // Ligou/desligou um monitor ou mudou a resolução: o player continua ocupando o monitor certo.
+  screen.on('display-added', monitoresMudaram);
+  screen.on('display-removed', monitoresMudaram);
+  screen.on('display-metrics-changed', monitoresMudaram);
 
   updater = createUpdater({
     url: config.updateUrl || pkg.vertice?.updateUrl,

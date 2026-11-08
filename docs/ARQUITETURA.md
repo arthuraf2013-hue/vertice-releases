@@ -188,4 +188,5 @@ companies/{id}                      name, plan, screenLimit, storageQuotaMB, sto
 - **Aplicação:**
   - Windows: instalador silencioso (`/S`).
   - Android: conteúdo novo em silêncio, sem reinstalar. O APK novo (só quando a parte nativa muda) instala sozinho onde o Android deixa; senão espera o "Instalar" do operador.
+- **Painel instalado no Windows:** mesmo `updater.cjs` (vai copiado no instalador do painel), chave `painel` do manifesto, `autoInstall: false`. Confere ao abrir (15 s) e de hora em hora e baixa em segundo plano. Instala no botão "Reiniciar e atualizar" (abre de novo) ou ao fechar o painel (`instalarAoSair`, sem abrir). "Procurar atualização" no rodapé do menu confere na hora. O job `painel` precisa do secret `PAINEL_ENV`; sem ele a versão sai sem painel novo.
 - **Painel › Downloads › Atualização das telas:** versão publicada (lida do ramo `updates`, que libera CORS), versão de cada TV e o botão "Atualizar agora" para as desatualizadas.

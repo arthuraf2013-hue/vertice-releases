@@ -224,7 +224,6 @@ function MenuPanel({ state, updater, remote, onClose }) {
               {can.window && (janela.fullscreen
                 ? <button type="button" className="vx-op-btn" onClick={() => executar(() => host.setFullscreen(false))}>Sair da tela cheia</button>
                 : <button type="button" className="vx-op-btn" onClick={() => executar(() => host.setFullscreen(true))}>Voltar à tela cheia</button>)}
-              {can.window && janela.monitores > 1 && <button type="button" className="vx-op-btn" onClick={() => executar(() => host.nextMonitor(), 'Trocando de monitor…')}>Trocar de monitor</button>}
               {can.minimize && <button type="button" className="vx-op-btn" onClick={() => executar(() => host.minimize())}>Minimizar</button>}
               {can.otherLauncher && <button type="button" className="vx-op-btn" onClick={() => executar(() => host.otherLauncher())}>Abrir outra tela inicial</button>}
               {can.quit && (
@@ -235,6 +234,7 @@ function MenuPanel({ state, updater, remote, onClose }) {
                 </button>
               )}
             </div>
+            {can.window && janela.monitores > 1 && <p className="vx-op-help">Para levar o player a outro monitor: passe o mouse no topo da tela e arraste a barra até ele. Ele preenche o monitor onde você soltar e abre sempre lá.</p>}
             {can.quit && <p className="vx-op-help">{shell === 'android'
               ? 'Fechado, o player volta sozinho quando a TV religar. Se ele for a tela inicial, aperte Home para abrir de novo.'
               : 'Fechado, o player volta sozinho quando o Windows religar, ou pelo atalho "Vértice Player".'}</p>}

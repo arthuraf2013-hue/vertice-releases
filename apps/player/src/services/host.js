@@ -62,8 +62,6 @@ export const host = {
   },
   minimize: () => (shell === 'electron' ? desktop.app('minimize') : Promise.resolve(false)),
   setFullscreen: (on) => (shell === 'electron' ? desktop.app(on ? 'fullscreen' : 'window') : Promise.resolve(false)),
-  /** Electron: leva o player para o próximo monitor. */
-  nextMonitor: () => (shell === 'electron' ? desktop.app('monitor') : Promise.resolve(false)),
   /** Electron: { fullscreen, monitores } e avisos quando muda. */
   windowState: () => (shell === 'electron' ? desktop.janela() : Promise.resolve({ fullscreen: true, monitores: 1 })),
   onWindowState: (cb) => (shell === 'electron' && desktop.onJanela ? desktop.onJanela(cb) : () => {}),

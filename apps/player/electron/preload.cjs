@@ -20,7 +20,7 @@ contextBridge.exposeInMainWorld('vxDesktop', {
     download: (name, url) => ipcRenderer.invoke('vx:media:download', name, url),
     prune: (keepIds) => ipcRenderer.invoke('vx:media:prune', keepIds),
   },
-  /** Menu do operador: reload | restart | quit | minimize | window | fullscreen | monitor. */
+  /** Menu do operador: reload | restart | quit | minimize | window | fullscreen. */
   app: (acao) => ipcRenderer.invoke('vx:app', acao),
   janela: () => ipcRenderer.invoke('vx:janela'),
   onJanela: (cb) => {

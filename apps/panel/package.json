@@ -1,12 +1,19 @@
 {
   "name": "@vertice/panel",
   "productName": "Vértice",
-  "version": "0.2.0",
+  "version": "0.3.6",
   "private": true,
   "description": "Painel de gestão do Vértice (web e desktop)",
   "author": "Vetta Sistemas",
   "type": "module",
   "main": "electron/main.cjs",
+  "vertice": {
+    "updateUrl": "https://github.com/arthuraf2013-hue/vertice-releases/releases/latest/download/player-update.json",
+    "updateMirrors": [
+      "https://raw.githubusercontent.com/arthuraf2013-hue/vertice-releases/updates/player-update.json",
+      "https://cdn.jsdelivr.net/gh/arthuraf2013-hue/vertice-releases@updates/player-update.json"
+    ]
+  },
   "scripts": {
     "dev": "vite",
     "dev:demo": "vite --mode demo",
@@ -39,6 +46,13 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      {
+        "from": "../player/electron",
+        "to": "electron",
+        "filter": [
+          "updater.cjs"
+        ]
+      },
       "package.json",
       "!node_modules/**/*"
     ],

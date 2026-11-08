@@ -97,10 +97,15 @@ No painel, em Telas › (tela) › **Controle remoto**: identificar a TV, ver um
 atualizar agora, abrir o menu na TV e ver o diagnóstico. Os comandos ficam em `screens/{id}/live/*` (regras em
 `firebase/firestore.rules`) e precisam do player 0.3.0 ou mais novo.
 
-No Windows o player reabre no mesmo monitor, posição e tamanho da última vez, em tela cheia ou em janela como
-estava (`%APPDATA%\Vértice Player\janela.json`; lógica em `apps/player/electron/janela.cjs`). Fora da tela cheia a
-janela tem barra de título para arrastar. Com mais de um monitor, o menu mostra **Trocar de monitor**. Se o
-monitor salvo não estiver ligado, abre centralizado no principal.
+No Windows o player não tem a moldura do Windows: em tela cheia ele ocupa o monitor inteiro. Mexendo o mouse,
+aparece uma **barra no topo**; arrastando por ela, o player vai para outro monitor e, ao soltar, preenche o monitor
+onde o mouse estava. Ele reabre sempre nesse monitor (`%APPDATA%\Vértice Player\janela.json`; lógica em
+`apps/player/electron/janela.cjs`). Se o monitor salvo estiver desligado, abre no principal e volta para o salvo
+quando ele ligar.
+
+O painel instalado no Windows também se atualiza: baixa a versão nova sozinho e instala quando a pessoa clica em
+**Reiniciar e atualizar** (rodapé do menu, onde também fica **Procurar atualização**) ou quando fecha o painel.
+Player e painel saem juntos, com o mesmo número de versão (secret `PAINEL_ENV` = conteúdo do `apps/panel/.env`).
 
 ## Planos
 

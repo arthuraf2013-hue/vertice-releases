@@ -1,5 +1,5 @@
-// Versão do Vértice Player em um lugar só: apps/player/package.json, package-lock.json e o APK
-// (versionName/versionCode no build.gradle).
+// Versão do Vértice em um lugar só: player e painel saem juntos com o mesmo número
+// (apps/player/package.json, apps/panel/package.json, package-lock.json e o APK: versionName/versionCode no build.gradle).
 //   node scripts/player-version.mjs            mostra a versão atual
 //   node scripts/player-version.mjs bump       sobe o último número (0.3.0 → 0.3.1)
 //   node scripts/player-version.mjs set 0.4.0  define uma versão
@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 const raiz = new URL('../', import.meta.url);
 const arq = (p) => new URL(p, raiz);
 const PKG = arq('apps/player/package.json');
+const PAINEL = arq('apps/panel/package.json');
 const LOCK = arq('package-lock.json');
 const GRADLE = arq('apps/player/android/app/build.gradle');
 
@@ -24,12 +25,14 @@ function aplicar(versao) {
   const [, , patch] = versao.split('.').map(Number);
   if (patch > 99) throw new Error('O último número passa de 99: suba o do meio (ex.: 0.4.0).');
 
-  const pkg = JSON.parse(readFileSync(PKG, 'utf8'));
-  pkg.version = versao;
-  writeFileSync(PKG, `${JSON.stringify(pkg, null, 2)}\n`);
+  for (const arquivo of [PKG, PAINEL]) {
+    const pkg = JSON.parse(readFileSync(arquivo, 'utf8'));
+    pkg.version = versao;
+    writeFileSync(arquivo, `${JSON.stringify(pkg, null, 2)}\n`);
+  }
 
   const lock = JSON.parse(readFileSync(LOCK, 'utf8'));
-  if (lock.packages?.['apps/player']) lock.packages['apps/player'].version = versao;
+  for (const ws of ['apps/player', 'apps/panel']) if (lock.packages?.[ws]) lock.packages[ws].version = versao;
   writeFileSync(LOCK, `${JSON.stringify(lock, null, 2)}\n`);
 
   let gradle = readFileSync(GRADLE, 'utf8');

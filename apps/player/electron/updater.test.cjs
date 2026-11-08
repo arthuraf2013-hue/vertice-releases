@@ -142,3 +142,34 @@ test('redundância: servidor principal fora do ar, manifesto e instalador vêm d
   assert.equal(chamadas.spawn.length, 1);
   assert.equal(fs.readFileSync(chamadas.spawn[0].cmd).length, exe.length);
 });
+
+test('painel: lê a chave "painel", baixa e espera o clique; ao fechar instala sem abrir de novo', async () => {
+  const exe = crypto.randomBytes(20_000);
+  const sha512 = crypto.createHash('sha512').update(exe).digest('base64');
+  const { s, base } = await servidor({});
+  s.removeAllListeners('request');
+  s.on('request', (req, res) => {
+    const u = req.url.split('?')[0];
+    const manifesto = {
+      version: '0.3.8',
+      windows: { version: '0.3.8', url: `${base}/player.exe`, sha512: 'outro' },
+      painel: { version: '0.3.8', url: `${base}/Vertice-Painel-Setup-0.3.8.exe`, sha512 },
+    };
+    const body = u.endsWith('.exe') ? exe : Buffer.from(JSON.stringify(manifesto));
+    res.writeHead(200, { 'Content-Length': body.length }).end(body);
+  });
+  const { mod, chamadas } = carregar({ version: '0.3.7' });
+  const up = mod.createUpdater({ url: `${base}/m.json`, onState: () => {}, chave: 'painel', nome: 'Vertice-Painel-Setup', autoInstall: false });
+  const st = await up.check();
+  assert.equal(st.status, 'ready');
+  assert.equal(st.available, '0.3.8');
+  assert.equal(chamadas.spawn.length, 0, 'não instala sozinho');
+  assert.equal(chamadas.quit, 0);
+  // Procurar de novo não baixa outra vez.
+  assert.equal((await up.check()).status, 'ready');
+  assert.equal(up.instalarAoSair(), true);
+  s.close();
+  assert.deepEqual(chamadas.spawn.map((c) => c.args), [['/S', '--updated']]);
+  assert.match(path.basename(chamadas.spawn[0].cmd), /^Vertice-Painel-Setup-0\.3\.8\.exe$/);
+  assert.equal(up.instalarAoSair(), false, 'só uma vez');
+});

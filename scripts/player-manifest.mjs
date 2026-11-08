@@ -1,7 +1,8 @@
 // Monta o player-update.json de uma versão (o arquivo que cada TV lê para se atualizar) e
 // cópias com nome fixo para o link "Baixar" do painel (…/releases/latest/download/…).
 //   node scripts/player-manifest.mjs <versão> <pasta com os arquivos> <dono/repositório> [notas] [manifesto anterior]
-// A pasta pode ter: Vertice-Player-Setup-<v>.exe, Vertice-Player-<v>.apk e vertice-player-web-<v>.zip.
+// A pasta pode ter: Vertice-Player-Setup-<v>.exe, Vertice-Player-<v>.apk, vertice-player-web-<v>.zip
+// e Vertice-Painel-Setup-<v>.exe (o painel instalado no Windows lê a chave "painel").
 // Publica o que tiver (o instalador do Windows não espera o APK, e vice-versa). Sem APK novo,
 // o manifesto continua oferecendo o APK da versão anterior.
 //
@@ -93,6 +94,7 @@ const minNativeCode = prev?.nativeHash === nativeHash && prev?.web?.minNativeCod
 const exe = `Vertice-Player-Setup-${versao}.exe`;
 const apk = `Vertice-Player-${versao}.apk`;
 const web = `vertice-player-web-${versao}.zip`;
+const painel = `Vertice-Painel-Setup-${versao}.exe`;
 
 if (!tem(exe) && !tem(apk) && !tem(web)) {
   console.error('Nenhum arquivo para publicar.');
@@ -113,13 +115,15 @@ const manifesto = {
     // (Parte nativa mudou e o APK novo não saiu? As TVs Android esperam: não aplicam o conteúdo.)
     minNativeCode,
   } : prev?.web || null,
+  painel: tem(painel) ? { version: versao, ...arquivo(painel, 'sha512', 'base64') } : prev?.painel || null,
   mirrors: mirrorBases(repo).map((b) => `${b}/player-update.json`),
 };
 
 writeFileSync(path.join(pasta, 'player-update.json'), `${JSON.stringify(manifesto, null, 2)}\n`);
 if (tem(apk)) copyFileSync(path.join(pasta, apk), path.join(pasta, 'Vertice-Player.apk'));
 if (tem(exe)) copyFileSync(path.join(pasta, exe), path.join(pasta, 'Vertice-Player-Setup.exe'));
-for (const [nome, ok] of [['Windows', tem(exe)], ['APK', tem(apk)], ['conteúdo Android', tem(web)]]) {
+if (tem(painel)) copyFileSync(path.join(pasta, painel), path.join(pasta, 'Vertice-Painel-Setup.exe'));
+for (const [nome, ok] of [['Windows', tem(exe)], ['APK', tem(apk)], ['conteúdo Android', tem(web)], ['painel para Windows', tem(painel)]]) {
   if (!ok) console.log(`::warning::Esta versão saiu sem ${nome} novo (ver o job que falhou). As TVs continuam com o anterior.`);
 }
 console.log(JSON.stringify(manifesto, null, 2));

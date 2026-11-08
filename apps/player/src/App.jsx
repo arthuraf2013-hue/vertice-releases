@@ -6,6 +6,8 @@ import { SystemScreen } from './ui/SystemScreen.jsx';
 import { Playback } from './ui/Playback.jsx';
 import { OrderOverlay, OrderSidebar, OrderBoard, useReadyAnnouncer, chaveDoPronto } from './ui/Orders.jsx';
 import { OperatorMenu } from './ui/OperatorMenu.jsx';
+import { WindowBar } from './ui/WindowBar.jsx';
+import { can } from './services/host.js';
 import { createUpdater } from './services/updater.js';
 import { startRemote } from './services/remote.js';
 import { createStats } from './services/stats.js';
@@ -100,6 +102,7 @@ function Screen({ state, device, updater, remote, stats, signals }) {
         {calibrating && <Calibration display={display} screen={manifest?.screen} />}
       </div>
       <OperatorMenu state={state} updater={updater} remote={remote} openSignal={signals?.open} identifySignal={signals?.identify} />
+      {can.window && <WindowBar />}
     </div>
   );
 }

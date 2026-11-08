@@ -135,6 +135,29 @@ body.vx-cursor button { cursor: pointer !important; }
 .vx-op-fab svg { width: calc(36 * var(--u)); height: calc(36 * var(--u)); fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
 .vx-op-fab:focus-visible, .vx-op-fab:focus { box-shadow: 0 0 0 calc(6 * var(--u)) #fff, 0 calc(12 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, .5); }
 
+.vx-winbar-on .vx-op-fab { top: calc(36 * var(--u) + 56px); }
+
+/* Barra do topo no Windows (o player não tem a moldura do Windows). Medidas em px: é da janela, não da TV. */
+.vx-winbar {
+  position: fixed; z-index: 45; top: 0; left: 0; right: 0; height: 48px;
+  display: flex; align-items: center; gap: 16px; padding: 0 8px 0 16px;
+  background: rgba(11, 16, 23, .92); color: #e8edf3; border-bottom: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .35); font: 600 14px var(--font-sans);
+  transform: translateY(-100%); opacity: 0; transition: transform .18s ease-out, opacity .18s ease-out;
+  -webkit-app-region: no-drag; pointer-events: none; user-select: none;
+}
+.vx-winbar.is-on { transform: none; opacity: 1; pointer-events: auto; -webkit-app-region: drag; cursor: move; }
+.vx-winbar-grip { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.vx-winbar-grip svg { width: 16px; height: 16px; flex: none; fill: #7d8a99; }
+.vx-winbar-grip b { flex: none; font-weight: 700; }
+.vx-winbar-grip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8d99a8; font-weight: 500; }
+.vx-winbar-actions { display: flex; gap: 6px; -webkit-app-region: no-drag; }
+.vx-winbar-actions button {
+  height: 32px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 8px;
+  background: rgba(255, 255, 255, .06); color: inherit; font: 600 13px var(--font-sans); cursor: pointer;
+}
+.vx-winbar-actions button:hover { background: rgba(255, 255, 255, .14); }
+
 .vx-op-backdrop { position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(5, 8, 12, .78); animation: tv-fade .2s ease-out; }
 .vx-op-panel {
   position: relative; display: flex; flex-direction: column;

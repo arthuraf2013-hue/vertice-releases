@@ -1,4 +1,3 @@
-import pkg from '../../package.json';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { ROLE_LABEL } from '@vertice/shared';
@@ -6,6 +5,7 @@ import { useSession } from '../session.jsx';
 import { api, isDemo, desktopConfigFile } from '../data/api.js';
 import { Icon } from './Icon.jsx';
 import { Logo } from './kit.jsx';
+import { AppUpdate } from './AppUpdate.jsx';
 
 const NAV = [
   ['PAINEL', [['/', 'dashboard', 'Dashboard']]],
@@ -23,6 +23,7 @@ export function Shell() {
     <div className="vx-app">
       <nav className={`vx-nav ${navOpen ? 'is-open' : ''}`} aria-label="Principal">
         <div className="vx-nav-brand"><Logo size={36} /></div>
+        <div className="vx-nav-scroll">
         {NAV.map(([group, items]) => (
           <div key={group}>
             <div className="vx-nav-group vx-overline">{group}</div>
@@ -39,7 +40,9 @@ export function Shell() {
             ))}
           </div>
         ))}
-        <div className="vx-nav-foot">v{pkg.version}</div>
+        </div>
+        {/* Fora da rolagem: a versão e o botão de atualizar ficam sempre à vista. */}
+        <AppUpdate />
       </nav>
       {navOpen && <div className="vx-nav-scrim" onClick={() => setNavOpen(false)} />}
       <div className="vx-main">
