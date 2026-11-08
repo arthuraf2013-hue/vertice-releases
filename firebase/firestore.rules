@@ -125,6 +125,18 @@ service cloud.firestore {
         allow read: if isMember(cid);
         allow write: if hasRole(cid, 'editor');
       }
+      // Anunciantes (relatório de comprovação de exibição).
+      match /advertisers/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
+      // Video walls: grupo de telas formando uma imagem só. O painel compila no manifesto de cada tela.
+      match /videowalls/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
       // Tabelas de preço (Price). A TV recebe os preços já dentro do manifesto.
       match /priceLists/{id} {
         allow read: if isMember(cid);

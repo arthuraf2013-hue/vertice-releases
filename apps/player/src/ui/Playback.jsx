@@ -91,7 +91,7 @@ export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty,
 
   if (!cur) return null;
   if (cur.item.type === 'app') {
-    return <div className="tv-play"><AppItem key={cur.n} item={cur.item} onFail={next} /></div>;
+    return <div className="tv-play"><AppItem key={cur.n} item={cur.item} cache={cache} /></div>;
   }
   const src = cache.src(cur.item);
   const fit = cur.item.fit || defaultFit;
@@ -115,11 +115,13 @@ export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty,
 }
 
 /** Aplicativo na tela (relógio, clima, notícias, preços…). */
-function AppItem({ item }) {
+export function AppItem({ item, cache }) {
   const data = useAppData(item.app);
+  // Foto da peça do Estúdio: a cópia baixada no aparelho, se já tiver.
+  const imageSrc = item.app.image ? cache.src(item.app.image) : null;
   return (
     <div className="tv-media-wrap tv-app">
-      <AppView app={item.app} weather={data.weather} feed={data.feed} status={data.status} />
+      <AppView app={item.app} weather={data.weather} feed={data.feed} table={data.table} imageSrc={imageSrc} status={data.status} />
     </div>
   );
 }

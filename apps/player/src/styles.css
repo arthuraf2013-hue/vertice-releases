@@ -183,3 +183,7 @@ body.vx-cursor button { cursor: pointer !important; }
 }
 .vx-op-identify b { font: 700 calc(260 * var(--u)) var(--font-display); letter-spacing: .04em; color: var(--vetta-gold); line-height: 1; }
 .vx-op-identify span { font: 600 calc(72 * var(--u)) var(--font-display); }
+
+/* Video wall: o conteúdo tem o tamanho do wall inteiro; cada TV mostra o seu pedaço. */
+.tv-wall { overflow: hidden; }
+.tv-wall-canvas { position: absolute; }

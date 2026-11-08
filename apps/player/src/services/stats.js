@@ -35,6 +35,7 @@ export function createStats(device) {
     r.plays += 1;
     r.seconds = Math.round((r.seconds + Math.min(seconds, 3600)) * 10) / 10;
     r.name = String(item.name || '').slice(0, 80);
+    if (item.advertiserId) r.adv = String(item.advertiserId).slice(0, 40); // relatório do anunciante
     items[item.mediaId] = r;
     dirty = true;
     save();

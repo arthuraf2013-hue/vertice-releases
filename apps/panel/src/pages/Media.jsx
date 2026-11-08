@@ -47,6 +47,7 @@ export function Media() {
   const toast = useToast();
   const [confirm, confirmDialog] = useConfirm();
   const allMedia = useCol(`${base}/media`, { orderBy: ['createdAt', 'desc'] });
+  const advertisers = useCol(`${base}/advertisers`, { orderBy: ['name', 'asc'] });
   // Aplicativos também são "mídias" (entram nas playlists), mas moram em Aplicativos e Price.
   const media = useMemo(() => allMedia && allMedia.filter((m) => m.type !== 'app'), [allMedia]);
   const playlists = useCol(`${base}/playlists`);
@@ -251,7 +252,7 @@ export function Media() {
       )}
 
       {settings && (
-        <MediaSettings items={media.filter((m) => settings.includes(m.id))} readOnly={!can('editor')}
+        <MediaSettings items={media.filter((m) => settings.includes(m.id))} readOnly={!can('editor')} advertisers={advertisers || []}
           onClose={() => setSettings(null)} onSave={saveSettings} />
       )}
       {confirmDialog}

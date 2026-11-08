@@ -41,7 +41,22 @@ const DEMO_APPS = {
   ticker: { kind: 'ticker', config: { title: 'Encomendas de Natal abertas', lines: ['Peça seu chester e panetone até 20/12', 'Aceitamos Pix e cartão', 'Wi-Fi: BoaMassa-Clientes'], speed: 'normal', theme: 'wine' } },
   weather: { kind: 'weather', config: { city: 'Recife, Pernambuco', lat: -8.05, lon: -34.88, days: 4, theme: 'brand' } },
   rss: { kind: 'rss', config: { url: 'https://g1.globo.com/rss/g1/pernambuco/', source: 'g1 Pernambuco', count: 5, theme: 'night' } },
+  qr: { kind: 'qr', config: { mode: 'wifi', ssid: 'BoaMassa-Clientes', password: 'paoquentinho', title: 'Wi-Fi grátis para clientes', subtitle: 'Aponte a câmera do celular e conecte', theme: 'light' } },
+  sheet: { kind: 'sheet', config: { url: 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit#gid=0', title: 'Escala da semana', rows: 8, header: true, theme: 'night' } },
 };
+// Peças do Estúdio (&app=studio&tpl=offer|notice|menu|welcome|event), com uma "foto" desenhada.
+const PHOTO = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><defs><radialGradient id="g" cx=".4" cy=".4"><stop offset="0" stop-color="#F2C46B"/><stop offset=".6" stop-color="#B8642A"/><stop offset="1" stop-color="#3B1A0C"/></radialGradient></defs><rect width="1200" height="900" fill="url(#g)"/><circle cx="600" cy="470" r="250" fill="#E9B26A" stroke="#7A3B14" stroke-width="30"/><path d="M380 470 Q600 300 820 470" stroke="#7A3B14" stroke-width="18" fill="none"/></svg>')}`;
+const STUDIO_DEMO = {
+  offer: { template: 'offer', theme: 'wine', fields: { badge: 'SÓ HOJE', product: 'Bolo de rolo', detail: 'Feito hoje cedo, receita da casa', oldPrice: '42,00', price: '38,00', unit: 'kg', footnote: 'Válido enquanto durar o estoque' } },
+  notice: { template: 'notice', theme: 'brand', fields: { icon: 'clock', overline: 'NOVO HORÁRIO', title: 'Abrimos aos domingos', text: 'A partir de 15/11, das 7h às 13h.' } },
+  menu: { template: 'menu', theme: 'night', fields: {} },
+  welcome: { template: 'welcome', theme: 'light', fields: {} },
+  event: { template: 'event', theme: 'green', fields: {} },
+};
+if (params.get('app') === 'studio') {
+  const cfg = STUDIO_DEMO[params.get('tpl')] || STUDIO_DEMO.offer;
+  DEMO_APPS.studio = { kind: 'studio', config: cfg, ...(params.get('foto') !== '0' && cfg.template !== 'notice' ? { image: { mediaId: 'foto', url: PHOTO } } : {}) };
+}
 if (DEMO_APPS[params.get('app')]) {
   items.splice(0, items.length, { key: 'p:app', mediaId: 'app', name: 'App', type: 'app', url: null, app: DEMO_APPS[params.get('app')], durationSec: 3600 });
 }
@@ -74,6 +89,12 @@ export function demoState(kind) {
     },
     company: { name: 'Padaria Boa Massa' },
     orderBoard: { ...ORDER_BOARD_DEFAULTS, mode },
+    // &wall=2x2&cell=0,1&bezel=2: esta TV como uma célula de video wall (conferir o recorte).
+    wall: params.get('wall') ? (() => {
+      const [cols, rows] = params.get('wall').split('x').map(Number);
+      const [row, col] = (params.get('cell') || '0,0').split(',').map(Number);
+      return { id: 'w', name: 'Demo', rows, cols, row, col, bezel: Number(params.get('bezel') || 0) };
+    })() : null,
     slots,
     fallback: [],
     assets: [],

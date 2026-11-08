@@ -126,6 +126,44 @@ companies/{id}                      name, plan, screenLimit, storageQuotaMB, sto
 | `playStats/{tela}_{dia}` | membros | só a própria TV, com id, data e campos conferidos |
 | `screens/{id}/captures/{id}` | membros e a própria TV | a própria TV (JPEG até ~900 KB); apaga: a TV ou admin |
 
-### Ainda por fazer
+## Fase 3: Estúdio, Video wall, Anunciantes, QR Code e Google Sheets
 
-Estúdio (editor de peças), Video wall, Anunciantes, QR Code e Google Sheets como aplicativos.
+### QR Code e Google Sheets (aplicativos)
+
+- **QR Code** (`qr`): link, Wi-Fi, Pix copia e cola ou texto. O QR é gerado na própria TV (`packages/shared/src/qr.js`, biblioteca `qrcode-generator`), sem internet.
+  - Pix: BR Code estático do Banco Central (`pixPayload`), com CRC16-CCITT. Valor opcional aceita "9,90". Antes de usar nas telas, confira lendo a prévia com o app do banco.
+- **Google Sheets** (`sheet`): `sheetCsvUrl` transforma o link de compartilhar ou de "Publicar na Web" no endereço do CSV. A TV lê pelo `host.fetchText` (sem CORS), guarda por 5 minutos e mostra até 30 linhas e 6 colunas.
+
+### Estúdio
+
+- Uma peça é uma mídia `type: 'app'` com `app.kind: 'studio'` e `config: { template, theme, colors, imageMediaId, fields }`.
+- Modelos em `packages/shared/src/studio.js`: oferta, aviso, cardápio do dia, boas-vindas e evento. Cada um define os próprios campos.
+- A peça é desenhada ao vivo na TV (`AppView`): mudar um preço não exige refazer arte.
+- Foto da biblioteca: o manifesto põe `app.image` e a foto entra em `assets` (`extraAssets` no item), então a TV baixa e mostra offline.
+
+### Anunciantes
+
+- `advertisers/{id}`: nome, CNPJ ou CPF, contato, telefone, e-mail, contrato (de/até) e observações.
+- A mídia tem `advertiserId`, definido em Mídias › Ajustar ou na página do anunciante. O manifesto leva o anunciante em cada item, e a TV grava `adv` junto com a exibição em `playStats`.
+- Relatórios agrupam por anunciante (`aggregatePlays(docs, 'advertiser', { advertiserOf })`). Registros antigos sem `adv` usam o anunciante atual da mídia.
+- "Relatório para o cliente": página de comprovação de exibição, para imprimir ou salvar em PDF (por mídia, por tela e por dia).
+
+### Video wall
+
+- `videowalls/{id}`: `{ name, rows, cols, cells: [screenId|null], playlistId, bezel, active }`, com grade de até 4×4.
+- `buildManifest` (com `walls`) põe `wall: { rows, cols, row, col, bezel }` no manifesto da TV e troca a programação dela pela playlist do wall.
+- O player (`WallPlayback`) desenha o conteúdo do tamanho do wall inteiro, contando as molduras (`wallCrop`), e desloca para mostrar só o pedaço desta TV.
+- **Sincronia pelo relógio:**
+  - Todas as TVs calculam o mesmo item e o mesmo segundo (`wallPosition`: agora mod duração total da playlist). Vídeo começa no segundo certo.
+  - A diferença entre o relógio da TV e o do servidor é medida no sinal de vida (só nas TVs de wall) e corrigida.
+  - Não precisa de TV "mestre" nem de rede entre as TVs.
+- O som sai só da TV do canto de cima à esquerda.
+- Aplicativos e peças esticam o quadro para a proporção do wall.
+- Vídeo sem duração conhecida conta 30 s. Defina o tempo na playlist do wall.
+
+### Regras novas (Fase 3)
+
+| Coleção | Quem lê | Quem grava |
+|---|---|---|
+| `advertisers/{id}` | membros | editor ou acima |
+| `videowalls/{id}` | membros | editor ou acima |

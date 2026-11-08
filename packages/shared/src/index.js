@@ -6,3 +6,6 @@ export * from './orders.js';
 export * from './format.js';
 export * from './release.js';
 export * from './apps.js';
+export * from './qr.js';
+export * from './studio.js';
+export * from './wall.js';

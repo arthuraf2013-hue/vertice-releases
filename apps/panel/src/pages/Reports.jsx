@@ -39,6 +39,8 @@ export function Reports() {
   const [by, setBy] = useState('media');
   const [screenId, setScreenId] = useState('');
   const [unitId, setUnitId] = useState('');
+  const [advId, setAdvId] = useState('');
+  const advertisers = useCol(`${base}/advertisers`, { orderBy: ['name', 'asc'] });
   const [from, to] = range(period, custom);
   const stats = useCol(`${base}/playStats`, { where: [['date', '>=', from], ['date', '<=', to]] });
   const screens = useCol(`${base}/screens`, { orderBy: ['code', 'asc'] });
@@ -49,16 +51,19 @@ export function Reports() {
 
   const docs = useMemo(() => (stats || []).filter((d) => (!screenId || d.screenId === screenId)
     && (!unitId || screenById.get(d.screenId)?.unitId === unitId)), [stats, screenId, unitId, screenById]);
-  const rows = useMemo(() => aggregatePlays(docs, by), [docs, by]);
+  const advertiserOf = (id) => mediaById.get(id)?.advertiserId || null;
+  const aggOpts = { advertiserOf, ...(advId ? { advertiser: advId === '-' ? '' : advId } : {}) };
+  const rows = useMemo(() => aggregatePlays(docs, by, aggOpts), [docs, by, advId, mediaById]); // eslint-disable-line react-hooks/exhaustive-deps
   const totals = useMemo(() => {
-    const t = aggregatePlays(docs, 'media');
+    const t = aggregatePlays(docs, 'media', aggOpts);
     return {
       plays: t.reduce((a, r) => a + r.plays, 0),
       seconds: t.reduce((a, r) => a + r.seconds, 0),
       media: t.length,
       screens: new Set(docs.map((d) => d.screenId)).size,
     };
-  }, [docs]);
+  }, [docs, advId, mediaById]); // eslint-disable-line react-hooks/exhaustive-deps
+  const advById = useById(advertisers);
 
   if (!stats || !screens || !media) return <Loading />;
   const label = (r) => {
@@ -67,13 +72,14 @@ export function Reports() {
       return s ? `${s.name} (${s.code})` : 'Tela removida';
     }
     if (by === 'day') return br(r.key);
+    if (by === 'advertiser') return r.key ? advById.get(r.key)?.name || 'Anunciante removido' : 'Conteúdo próprio';
     return mediaById.get(r.key)?.name || r.name || 'Mídia removida';
   };
   const max = Math.max(1, ...rows.map((r) => r.plays));
 
   const exportCsv = () => {
     const cols = [
-      { label: by === 'screen' ? 'Tela' : by === 'day' ? 'Dia' : 'Mídia', value: label },
+      { label: by === 'screen' ? 'Tela' : by === 'day' ? 'Dia' : by === 'advertiser' ? 'Anunciante' : 'Mídia', value: label },
       ...(by === 'media' ? [{ label: 'Tipo', value: (r) => { const m = mediaById.get(r.key); return m?.type === 'app' ? APP_KINDS[m.app?.kind]?.label || 'Aplicativo' : m?.type === 'video' ? 'Vídeo' : m ? 'Imagem' : ''; } }] : []),
       { label: 'Exibições', value: 'plays' },
       { label: 'Tempo na tela (min)', value: (r) => (r.seconds / 60).toFixed(1).replace('.', ',') },
@@ -106,6 +112,10 @@ export function Reports() {
             options={[{ value: '', label: 'Todas' }, ...units.map((u) => ({ value: u.id, label: u.name }))]} />
           <Select label="Tela" value={screenId} onChange={(e) => setScreenId(e.target.value)}
             options={[{ value: '', label: 'Todas' }, ...screens.filter((s) => !unitId || s.unitId === unitId).map((s) => ({ value: s.id, label: `${s.name} (${s.code})` }))]} />
+          {!!advertisers?.length && (
+            <Select label="Anunciante" value={advId} onChange={(e) => setAdvId(e.target.value)}
+              options={[{ value: '', label: 'Todos' }, { value: '-', label: 'Conteúdo próprio' }, ...advertisers.map((a) => ({ value: a.id, label: a.name }))]} />
+          )}
         </div>
         <span className="vx-faint">{from === to ? br(from) : `${br(from)} a ${br(to)}`}</span>
       </Card>
@@ -117,7 +127,7 @@ export function Reports() {
         <MetricCard icon="screen" label="Telas com registro" value={totals.screens} total={screens.length} note="Telas que mandaram exibições" />
       </div>
 
-      <Card title="Exibições" icon="chart" actions={<Segmented value={by} onChange={setBy} options={[{ value: 'media', label: 'Por mídia' }, { value: 'screen', label: 'Por tela' }, { value: 'day', label: 'Por dia' }]} />}>
+      <Card title="Exibições" icon="chart" actions={<Segmented value={by} onChange={setBy} options={[{ value: 'media', label: 'Por mídia' }, { value: 'screen', label: 'Por tela' }, ...(advertisers?.length ? [{ value: 'advertiser', label: 'Por anunciante' }] : []), { value: 'day', label: 'Por dia' }]} />}>
         {rows.length ? (
           by === 'day' ? (
             <div className="vx-report-days" role="img" aria-label="Exibições por dia">
@@ -133,7 +143,7 @@ export function Reports() {
             <table className="vx-table vx-report-table">
               <thead>
                 <tr>
-                  <th>{by === 'screen' ? 'Tela' : 'Mídia'}</th>
+                  <th>{by === 'screen' ? 'Tela' : by === 'advertiser' ? 'Anunciante' : 'Mídia'}</th>
                   <th className="vx-num">Exibições</th>
                   <th className="vx-num">Tempo na tela</th>
                   <th className="vx-num">{by === 'screen' ? 'Mídias' : 'Telas'}</th>
@@ -145,7 +155,7 @@ export function Reports() {
                   <tr key={r.key}>
                     <td>
                       <span className="vx-report-name">
-                        {by === 'media' ? <MediaThumb media={mediaById.get(r.key)} className="vx-report-thumb" /> : <span className="vx-tile"><Icon name="screen" /></span>}
+                        {by === 'media' ? <MediaThumb media={mediaById.get(r.key)} className="vx-report-thumb" /> : <span className="vx-tile"><Icon name={by === 'advertiser' ? 'megaphone' : 'screen'} /></span>}
                         <span className="vx-ellipsis">{label(r)}</span>
                       </span>
                     </td>

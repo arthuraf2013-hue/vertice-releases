@@ -91,7 +91,7 @@ export function ScreenDisplay({ value, onChange, calibrating, onCalibrate, calib
   );
 }
 
-function Slider({ label, unit, value, min, max, step, onChange, disabled, signed }) {
+export function Slider({ label, unit, value, min, max, step, onChange, disabled, signed }) {
   const fmt = (v) => `${signed && v > 0 ? '+' : ''}${String(v).replace('.', ',')}${unit}`;
   const clamp = (v) => Math.min(max, Math.max(min, Math.round(v / step) * step));
   return (

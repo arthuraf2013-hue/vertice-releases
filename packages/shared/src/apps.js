@@ -53,6 +53,31 @@ export const APP_KINDS = {
     defaultSec: 60,
     defaults: { url: '', muted: true },
   },
+  qr: {
+    label: 'QR Code',
+    icon: 'qr',
+    group: 'Vendas',
+    desc: 'Link, Wi-Fi ou Pix copia e cola num QR grande, com título. Gerado na própria TV.',
+    defaultSec: 15,
+    defaults: { mode: 'link', url: '', ssid: '', password: '', security: 'WPA', pixKey: '', pixName: '', pixCity: '', pixAmount: '', pixMessage: '', text: '', title: 'Aponte a câmera do celular', subtitle: '', theme: 'light' },
+  },
+  sheet: {
+    label: 'Google Sheets',
+    icon: 'sheet',
+    group: 'Informação',
+    desc: 'Uma tabela de uma planilha do Google. Mudou a planilha, a TV atualiza sozinha.',
+    defaultSec: 20,
+    defaults: { url: '', title: '', rows: 10, header: true, theme: 'night' },
+  },
+  studio: {
+    label: 'Peça do Estúdio',
+    icon: 'palette',
+    group: 'Vendas',
+    desc: 'Criada no Estúdio a partir de um modelo.',
+    defaultSec: 12,
+    defaults: { template: 'offer', theme: 'brand', colors: null, imageMediaId: '', fields: {} },
+    managed: true, // criada e editada no Estúdio
+  },
   price: {
     label: 'Tabela de preços',
     icon: 'tag',
@@ -207,6 +232,61 @@ export function summarizeWeather(json, days = 4) {
   };
 }
 
+/* ---------------- Google Sheets ---------------- */
+
+/**
+ * Link de planilha do Google → endereço do CSV.
+ * Aceita o link de compartilhar (".../d/{id}/edit#gid=0", precisa estar como "qualquer pessoa com o link")
+ * e o link de "Publicar na Web" (".../d/e/{id}/pubhtml" ou "pub?output=csv").
+ */
+export function sheetCsvUrl(input = '') {
+  const s = String(input).trim();
+  if (!/^https:\/\/docs\.google\.com\/spreadsheets\//.test(s)) return null;
+  const gid = (/[#&?]gid=(\d+)/.exec(s) || [])[1];
+  const pub = /\/d\/e\/([\w-]+)/.exec(s);
+  if (pub) return `https://docs.google.com/spreadsheets/d/e/${pub[1]}/pub?output=csv${gid ? `&gid=${gid}` : ''}`;
+  const id = /\/d\/([\w-]{20,})/.exec(s);
+  if (!id) return null;
+  return `https://docs.google.com/spreadsheets/d/${id[1]}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
+}
+
+/** CSV → linhas (aceita aspas, ";" ou ",", e quebra de linha dentro de célula). */
+export function parseCsv(text = '') {
+  const src = String(text).replace(/^\uFEFF/, '');
+  const firstLine = src.split(/\r?\n/, 1)[0] || '';
+  const sep = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let q = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (q) {
+      if (ch === '"' && src[i + 1] === '"') { cell += '"'; i++; } else if (ch === '"') q = false;
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === sep) { row.push(cell.trim()); cell = ''; } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i++;
+      row.push(cell.trim());
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell.trim()); rows.push(row); }
+  return rows.filter((r) => r.some((c) => c));
+}
+
+/** Tabela pronta para a TV: cabeçalho opcional, até N linhas e 6 colunas. */
+export function sheetTable(csv, { header = true, rows = 10 } = {}) {
+  const all = parseCsv(csv).map((r) => r.slice(0, 6).map((c) => c.slice(0, 80)));
+  const cols = Math.max(0, ...all.map((r) => r.length));
+  const pad = (r) => [...r, ...Array(cols - r.length).fill('')];
+  const head = header && all.length ? pad(all[0]) : null;
+  const body = all.slice(header ? 1 : 0, (header ? 1 : 0) + Math.max(1, Math.min(30, Number(rows) || 10))).map(pad);
+  return { head, rows: body };
+}
+
 /* ---------------- Price ---------------- */
 
 export const PRICE_LAYOUTS = { list: 'Lista', cards: 'Cartões' };
@@ -339,16 +419,23 @@ export function daysAgoISO(n, from = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** Anunciante de uma exibição: o que a TV gravou ou, para registros antigos, o da mídia hoje. */
+export const playAdvertiser = (mediaId, v, advertiserOf) => v?.adv || advertiserOf?.(mediaId) || '';
+
 /**
  * Soma os registros diários das telas (`playStats/{tela}_{dia}`).
- * @param {object[]} docs  [{ screenId, date, items: { [mediaId]: { plays, seconds, name } } }]
- * @param {'media'|'screen'|'day'} by
+ * @param {object[]} docs  [{ screenId, date, items: { [mediaId]: { plays, seconds, name, adv? } } }]
+ * @param {'media'|'screen'|'day'|'advertiser'} by
+ * @param {{ advertiserOf?: (mediaId:string) => string|null, advertiser?: string }} opts
+ *   advertiserOf: anunciante atual da mídia; advertiser: soma só as exibições desse anunciante.
  */
-export function aggregatePlays(docs = [], by = 'media') {
+export function aggregatePlays(docs = [], by = 'media', { advertiserOf, advertiser } = {}) {
   const map = new Map();
   for (const d of docs) {
     for (const [mediaId, v] of Object.entries(d.items || {})) {
-      const key = by === 'screen' ? d.screenId : by === 'day' ? d.date : mediaId;
+      const adv = playAdvertiser(mediaId, v, advertiserOf);
+      if (advertiser != null && adv !== advertiser) continue;
+      const key = by === 'screen' ? d.screenId : by === 'day' ? d.date : by === 'advertiser' ? adv : mediaId;
       const row = map.get(key) || { key, plays: 0, seconds: 0, name: '', screens: new Set(), media: new Set(), days: new Set() };
       row.plays += Number(v.plays) || 0;
       row.seconds += Number(v.seconds) || 0;

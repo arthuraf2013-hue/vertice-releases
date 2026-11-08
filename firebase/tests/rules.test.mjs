@@ -231,3 +231,14 @@ test('price: editor mantém as tabelas de preço; leitor só lê', async () => {
   await assertSucceeds(getDoc(pl(as('viewer'))));
   await assertFails(getDoc(pl(as('x'))));
 });
+
+test('anunciantes e video walls: editor grava; leitor só lê; de fora não vê', async () => {
+  await seedCompany();
+  for (const col of ['advertisers', 'videowalls']) {
+    const d = (db) => doc(db, `companies/${CID}/${col}/x1`);
+    await assertSucceeds(setDoc(d(as('editor')), { name: 'Teste' }));
+    await assertFails(setDoc(d(as('viewer')), { name: 'x' }));
+    await assertSucceeds(getDoc(d(as('viewer'))));
+    await assertFails(getDoc(d(as('x'))));
+  }
+});

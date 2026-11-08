@@ -56,6 +56,7 @@ export function seedDemo({ set }) {
       name, type, url, thumbUrl: url, sizeBytes: Math.round(mb * 1024 * 1024),
       ext: name.split('.').pop(), width: 1920, height: 1080, durationSec: dur || null,
       storagePath: `companies/demo/media/${id}`, createdAt: now - (i + 1) * 1440 * MIN * 2, createdBy: 'Cristina Albuquerque',
+      ...({ m2: { advertiserId: 'adv1' }, m5: { advertiserId: 'adv2' } }[id] || {}),
     });
   });
 
@@ -131,7 +132,23 @@ export function seedDemo({ set }) {
   });
   set(`${c}/media/price_pl1`, { type: 'app', name: 'Preços · Pães e salgados', app: { kind: 'price', config: { listId: 'pl1' } }, sizeBytes: 0, createdAt: now - 2 * 60 * MIN });
 
+  // Estúdio (Fase 3).
+  set(`${c}/media/st-offer`, { type: 'app', name: 'Oferta: bolo de rolo', sizeBytes: 0, createdAt: now - 3 * 60 * MIN, updatedAt: now - 3 * 60 * MIN,
+    app: { kind: 'studio', config: { template: 'offer', theme: 'wine', imageMediaId: 'm3', fields: { badge: 'SÓ HOJE', product: 'Bolo de rolo', detail: 'Feito hoje cedo, receita da casa', oldPrice: '42,00', price: '38,00', unit: 'kg', footnote: 'Válido enquanto durar o estoque' } } } });
+  set(`${c}/media/st-notice`, { type: 'app', name: 'Aviso: domingo', sizeBytes: 0, createdAt: now - 5 * 60 * MIN,
+    app: { kind: 'studio', config: { template: 'notice', theme: 'brand', fields: { icon: 'clock', overline: 'NOVO HORÁRIO', title: 'Abrimos aos domingos', text: 'A partir de 15/11, das 7h às 13h.' } } } });
+
+  // Video wall (Fase 3).
+  set(`${c}/videowalls/vw1`, { name: 'Vitrine Casa Forte', rows: 1, cols: 2, cells: ['s4', 's5'], playlistId: 'p1', bezel: 1.5, active: true, createdAt: now - 6 * 1440 * MIN });
+
+  // Anunciantes (Fase 3).
+  const isoDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  set(`${c}/advertisers/adv1`, { name: 'Café Serra Azul', doc: '12.345.678/0001-90', contact: 'Juliana Prado', phone: '(81) 99876-5432', email: 'marketing@serraazul.com.br', contractFrom: isoDay(now - 20 * 1440 * MIN), contractTo: isoDay(now + 40 * 1440 * MIN), notes: 'Plano Vitrine: 4 telas, 20 s por exibição.', createdAt: now - 20 * 1440 * MIN });
+  set(`${c}/advertisers/adv2`, { name: 'Laticínios Bom Leite', doc: '98.765.432/0001-10', contact: 'Marcos Lima', phone: '(81) 3333-2211', contractFrom: isoDay(now - 50 * 1440 * MIN), contractTo: isoDay(now + 9 * 1440 * MIN), createdAt: now - 50 * 1440 * MIN });
+  set(`${c}/advertisers/adv3`, { name: 'Academia Ritmo', contact: 'Paula', contractFrom: isoDay(now - 90 * 1440 * MIN), contractTo: isoDay(now - 5 * 1440 * MIN), createdAt: now - 90 * 1440 * MIN });
+
   // Exibições dos últimos 14 dias (Relatórios).
+  const ADV = { m2: 'adv1', m5: 'adv2' };
   const plays = [['m1', 'Pão francês.png', 10], ['m2', 'Café + pão de queijo.png', 10], ['m3', 'Bolo de rolo.png', 10], ['m5', 'Vitrine de bolos.mp4', 20], ['m7', 'Institucional Boa Massa.mp4', 30], ['price_pl1', 'Preços · Pães e salgados', 15], ['app-clock', 'Relógio da loja', 10]];
   ['s1', 's2', 's4', 's6'].forEach((sid, si) => {
     for (let d = 0; d < 14; d++) {
@@ -141,7 +158,7 @@ export function seedDemo({ set }) {
       plays.forEach(([mid, name, sec], mi) => {
         if ((mi + si) % 5 === 4) return;
         const n = Math.round(70 + 40 * Math.sin(d + mi) + (6 - mi) * 12 - si * 8 - (d === 0 ? 40 : 0));
-        items[mid] = { plays: Math.max(4, n), seconds: Math.max(4, n) * sec, name };
+        items[mid] = { plays: Math.max(4, n), seconds: Math.max(4, n) * sec, name, ...(ADV[mid] ? { adv: ADV[mid] } : {}) };
       });
       set(`${c}/playStats/${sid}_${date}`, { screenId: sid, date, items, updatedAt: now - d * 1440 * MIN });
     }

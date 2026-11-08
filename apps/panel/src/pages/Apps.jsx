@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   APP_KINDS, APP_THEMES, TICKER_SPEEDS, normalizeApp, appDefaultSeconds, geocodeUrl, weatherUrl, summarizeWeather,
-  youtubeId, safeHttpUrl, formatDateTime,
+  youtubeId, safeHttpUrl, formatDateTime, sheetCsvUrl, sheetTable, qrContent, parsePrice,
 } from '@vertice/shared';
 import { AppView } from '@vertice/shared/apps';
 import { useSession } from '../session.jsx';
@@ -130,7 +130,7 @@ export function Apps() {
           ))}
           <div className="vx-apps-hint">
             <Icon name="tag" />
-            <span>Tabela de preços fica em <a href="#/price">Price</a>.</span>
+            <span>Tabela de preços fica em <a href="#/price">Price</a>; peças de oferta e aviso, no <a href="#/estudio">Estúdio</a>.</span>
           </div>
         </nav>
         <div className="vx-apps-grid">
@@ -213,6 +213,18 @@ function AppEditor({ value, onChange, onClose, onSave }) {
               <Toggle label="Sem som" help="Muitas TVs só tocam automático sem som." checked={c.muted !== false} onChange={(v) => set({ muted: v })} />
             </>
           )}
+          {value.kind === 'qr' && <QrFields c={c} set={set} />}
+          {value.kind === 'sheet' && (
+            <>
+              <Input label="Link da planilha do Google" value={c.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://docs.google.com/spreadsheets/d/…"
+                help={'Na planilha: Compartilhar → "Qualquer pessoa com o link" pode ver. Ou Arquivo → Compartilhar → Publicar na Web. A aba certa vai pelo link (gid).'} />
+              <Input label="Título na tela (opcional)" value={c.title} maxLength={40} onChange={(e) => set({ title: e.target.value })} placeholder="Ex.: Escala da semana" />
+              <div className="vx-form-row">
+                <Select label="Linhas na tela" value={String(c.rows)} onChange={(e) => set({ rows: Number(e.target.value) })} options={[5, 8, 10, 12, 15, 20].map((n) => ({ value: String(n), label: String(n) }))} />
+                <Toggle label="Primeira linha é o cabeçalho" checked={c.header !== false} onChange={(v) => set({ header: v })} />
+              </div>
+            </>
+          )}
           {'theme' in def.defaults && (
             <Select label="Cores" value={c.theme} onChange={(e) => set({ theme: e.target.value })} options={Object.entries(APP_THEMES).map(([k, t]) => ({ value: k, label: t.label }))} />
           )}
@@ -231,7 +243,61 @@ function validate(v) {
   if (v.kind === 'web' && !safeHttpUrl(c.url)) return 'Informe o endereço do site (começando com https://).';
   if (v.kind === 'youtube' && !youtubeId(c.url)) return 'Cole um link de vídeo do YouTube.';
   if (v.kind === 'ticker' && !(c.lines || []).some((l) => l.trim())) return 'Escreva pelo menos um aviso.';
+  if (v.kind === 'sheet' && !sheetCsvUrl(c.url)) return 'Cole o link de uma planilha do Google (docs.google.com/spreadsheets/…).';
+  if (v.kind === 'qr') {
+    if (c.mode === 'pix' && (!c.pixKey?.trim() || !c.pixName?.trim() || !c.pixCity?.trim())) return 'Para o Pix, informe a chave, o nome e a cidade de quem recebe.';
+    if (c.mode === 'link' && !safeHttpUrl(c.url)) return 'Informe o link (começando com https://).';
+    if (!qrContent(c)) return 'Preencha o conteúdo do QR Code.';
+  }
   return null;
+}
+
+const QR_MODES = [{ value: 'link', label: 'Link' }, { value: 'wifi', label: 'Wi-Fi' }, { value: 'pix', label: 'Pix' }, { value: 'text', label: 'Texto' }];
+const QR_TITLES = { link: 'Aponte a câmera do celular', wifi: 'Conecte-se ao nosso Wi-Fi', pix: 'Pague com Pix', text: 'Aponte a câmera do celular' };
+
+function QrFields({ c, set }) {
+  const mode = (m) => set({ mode: m, title: Object.values(QR_TITLES).includes(c.title) || !c.title ? QR_TITLES[m] : c.title });
+  return (
+    <>
+      <Segmented label="O que o QR abre" value={c.mode} onChange={mode} options={QR_MODES} />
+      {c.mode === 'link' && <Input label="Link" value={c.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://instagram.com/sualoja" />}
+      {c.mode === 'wifi' && (
+        <>
+          <div className="vx-form-row">
+            <Input label="Nome da rede" value={c.ssid} maxLength={32} onChange={(e) => set({ ssid: e.target.value })} />
+            <Input label="Senha" value={c.password} maxLength={63} onChange={(e) => set({ password: e.target.value })} />
+          </div>
+          <div className="vx-form-row">
+            <Select label="Segurança" value={c.security || 'WPA'} onChange={(e) => set({ security: e.target.value })} options={[{ value: 'WPA', label: 'WPA/WPA2 (o comum)' }, { value: 'WEP', label: 'WEP' }, { value: 'nopass', label: 'Sem senha' }]} />
+            <Toggle label="Mostrar a senha na tela" checked={c.showPassword !== false} onChange={(v) => set({ showPassword: v })} />
+          </div>
+        </>
+      )}
+      {c.mode === 'pix' && (
+        <>
+          <Input label="Chave Pix" value={c.pixKey} maxLength={77} onChange={(e) => set({ pixKey: e.target.value })} placeholder="CNPJ, e-mail, telefone (+55…) ou chave aleatória" />
+          <div className="vx-form-row">
+            <Input label="Nome de quem recebe" value={c.pixName} maxLength={25} onChange={(e) => set({ pixName: e.target.value })} />
+            <Input label="Cidade" value={c.pixCity} maxLength={15} onChange={(e) => set({ pixCity: e.target.value })} />
+          </div>
+          <div className="vx-form-row">
+            <Input label="Valor fixo (opcional)" inputMode="decimal" value={c.pixAmount} onChange={(e) => set({ pixAmount: e.target.value })} placeholder="Em branco: o cliente digita" />
+            <Input label="Mensagem (opcional)" value={c.pixMessage} maxLength={40} onChange={(e) => set({ pixMessage: e.target.value })} />
+          </div>
+          {parsePrice(c.pixAmount) == null && c.pixAmount && <p className="vx-help vx-help-warn"><Icon name="alert" />Valor não entendido; use, por exemplo, 12,90.</p>}
+          <p className="vx-help">Confira lendo o QR da prévia com o app do seu banco antes de colocar nas telas.</p>
+        </>
+      )}
+      {c.mode === 'text' && (
+        <label className="vx-field">
+          <span className="vx-label">Texto</span>
+          <textarea className="vx-input vx-textarea" rows={3} maxLength={500} value={c.text} onChange={(e) => set({ text: e.target.value })} />
+        </label>
+      )}
+      <Input label="Título" value={c.title} maxLength={60} onChange={(e) => set({ title: e.target.value })} />
+      <Input label="Subtítulo (opcional)" value={c.subtitle} maxLength={80} onChange={(e) => set({ subtitle: e.target.value })} placeholder="Ex.: Siga a gente e ganhe 10% na próxima compra" />
+    </>
+  );
 }
 
 function WeatherFields({ c, set }) {
@@ -273,7 +339,7 @@ function WeatherFields({ c, set }) {
 }
 
 /** Prévia ao vivo, igual à TV (mesmo componente do player). */
-export function AppPreview({ app, portraitDefault = false }) {
+export function AppPreview({ app, portraitDefault = false, imageSrc = null }) {
   const [portrait, setPortrait] = useState(portraitDefault);
   const [weather, setWeather] = useState(null);
   const [status, setStatus] = useState(null);
@@ -288,6 +354,16 @@ export function AppPreview({ app, portraitDefault = false }) {
       .catch(() => alive && setStatus('error'));
     return () => { alive = false; };
   }, [app.kind, c.lat, c.lon, c.days]);
+  // Planilha: tenta ler de verdade (planilha publicada costuma deixar); senão, tabela de exemplo.
+  const [table, setTable] = useState(null);
+  const csvUrl = app.kind === 'sheet' ? sheetCsvUrl(c.url) : null;
+  useEffect(() => {
+    if (!csvUrl) { setTable(null); return undefined; }
+    let alive = true;
+    fetch(csvUrl).then((r) => (r.ok ? r.text() : Promise.reject())).then((txt) => alive && setTable({ ...sheetTable(txt, { header: c.header !== false, rows: c.rows }), real: true }))
+      .catch(() => alive && setTable({ ...sheetTable(SAMPLE_SHEET, { header: c.header !== false, rows: c.rows }), real: false }));
+    return () => { alive = false; };
+  }, [csvUrl, c.header, c.rows]);
   // Notícias: o navegador do painel não lê feeds de outros sites; a TV lê. Na prévia, manchetes de exemplo.
   const feed = app.kind === 'rss' ? { source: c.source || 'Notícias', items: SAMPLE_NEWS } : null;
   return (
@@ -297,12 +373,15 @@ export function AppPreview({ app, portraitDefault = false }) {
         <Segmented value={portrait ? 'p' : 'l'} onChange={(v) => setPortrait(v === 'p')} options={[{ value: 'l', label: 'Deitada' }, { value: 'p', label: 'Em pé' }]} />
       </div>
       <div className={`vx-app-screen ${portrait ? 'is-portrait' : ''}`}>
-        <AppView app={app} weather={weather} feed={feed} status={status} />
+        <AppView app={app} weather={weather} feed={feed} table={table} imageSrc={imageSrc} status={status} />
       </div>
       {app.kind === 'rss' && <p className="vx-help">Na prévia aparecem manchetes de exemplo. A TV mostra as do feed.</p>}
+      {app.kind === 'sheet' && table && !table.real && <p className="vx-help">O navegador não deixou ler a planilha daqui; a prévia mostra uma tabela de exemplo. A TV lê a planilha direto.</p>}
     </div>
   );
 }
+
+const SAMPLE_SHEET = 'Dia,Turno,Responsável\nSegunda,Manhã,Ana\nSegunda,Tarde,Bruno\nTerça,Manhã,Carla\nTerça,Tarde,Diego\nQuarta,Manhã,Edu\nQuarta,Tarde,Fernanda';
 
 const SAMPLE_NEWS = [
   { title: 'As manchetes do feed aparecem aqui, atualizadas a cada 15 minutos' },

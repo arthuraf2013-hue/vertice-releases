@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  appTheme, weatherLabel, formatMoney, youtubeEmbedUrl, safeHttpUrl, TICKER_SPEEDS, APP_KINDS,
+  appTheme, weatherLabel, formatMoney, youtubeEmbedUrl, safeHttpUrl, TICKER_SPEEDS, APP_KINDS, parsePrice,
 } from '../apps.js';
+import { qrMatrix, qrPath, qrContent } from '../qr.js';
+import { studioFields, studioLines, studioColors } from '../studio.js';
 
 /**
  * Desenho de um aplicativo na TV. O mesmo componente roda no player e na prévia do painel.
@@ -11,7 +13,7 @@ import {
  * @param {{ app: {kind:string, config:object, data?:object}, weather?: object|null, feed?: {source:string, items:object[]}|null,
  *           now?: number, status?: 'loading'|'error'|null }} props
  */
-export function AppView({ app, weather = null, feed = null, now, status = null }) {
+export function AppView({ app, weather = null, feed = null, table = null, imageSrc = null, now, status = null }) {
   if (!app || !APP_KINDS[app.kind]) return <div className="vxa vxa-empty" />;
   const c = app.config || {};
   if (app.kind === 'youtube') {
@@ -25,7 +27,7 @@ export function AppView({ app, weather = null, feed = null, now, status = null }
     return src ? <WebFrame src={src} reloadMin={Number(c.reloadMin) || 0} /> : <Missing text="Endereço do site inválido" />;
   }
   const themeKey = app.kind === 'price' ? app.data?.theme : c.theme;
-  const t = appTheme(themeKey);
+  const t = app.kind === 'studio' ? studioColors(appTheme(themeKey), c.colors) : appTheme(themeKey);
   return (
     <Stage bg={t.bg}>
       {({ portrait }) => (
@@ -35,6 +37,9 @@ export function AppView({ app, weather = null, feed = null, now, status = null }
           {app.kind === 'weather' && <Weather c={c} w={weather} status={status} portrait={portrait} />}
           {app.kind === 'rss' && <News c={c} feed={feed} status={status} />}
           {app.kind === 'price' && <Price data={app.data} portrait={portrait} />}
+          {app.kind === 'qr' && <Qr c={c} portrait={portrait} />}
+          {app.kind === 'sheet' && <Sheet c={c} table={table} status={status} portrait={portrait} />}
+          {app.kind === 'studio' && <Studio c={c} image={imageSrc || app.image?.url || null} portrait={portrait} />}
         </div>
       )}
     </Stage>
@@ -59,8 +64,11 @@ function Stage({ bg, children }) {
     return () => ro.disconnect();
   }, []);
   const portrait = box.h > box.w;
-  const W = portrait ? 1080 : 1920;
-  const H = portrait ? 1920 : 1080;
+  // Telas comuns: 1920×1080 (ou 1080×1920). Mais largas ou mais altas que isso (video wall),
+  // o quadro estica na proporção do espaço, para o conteúdo ocupar o wall inteiro.
+  const ratio = box.w / Math.max(1, box.h);
+  const W = portrait ? 1080 : Math.max(1920, Math.round(1080 * ratio));
+  const H = portrait ? Math.max(1920, Math.round(1080 / ratio)) : 1080;
   const s = Math.min(box.w / W, box.h / H);
   return (
     <div ref={ref} className="vxa-stage" style={{ background: bg }}>
@@ -270,6 +278,180 @@ function Price({ data, portrait }) {
         </div>
       )}
       {data.footer && <footer className="vxa-price-foot vxa-muted">{data.footer}</footer>}
+    </div>
+  );
+}
+
+/* ---------------- QR Code ---------------- */
+
+function QrSvg({ text, size }) {
+  const m = qrMatrix(text);
+  if (!m) return <div className="vxa-qr-box vxa-qr-empty" style={{ width: size, height: size }}>QR</div>;
+  const n = m.length + 8; // margem de 4 módulos
+  return (
+    <div className="vxa-qr-box" style={{ width: size, height: size }}>
+      <svg viewBox={`-4 -4 ${n} ${n}`} width="100%" height="100%" shapeRendering="crispEdges" aria-label="QR Code">
+        <rect x="-4" y="-4" width={n} height={n} fill="#fff" />
+        <path d={qrPath(m)} fill="#0E1A2B" />
+      </svg>
+    </div>
+  );
+}
+
+function Qr({ c, portrait }) {
+  const text = qrContent(c);
+  const amount = parsePrice(c.pixAmount);
+  return (
+    <div className={`vxa-qr ${portrait ? 'col' : ''}`}>
+      <QrSvg text={text} size={portrait ? 760 : 760} />
+      <div className="vxa-qr-text">
+        {c.mode === 'pix' && !/pix/i.test(c.title || '') && <div className="vxa-over">PAGUE COM PIX</div>}
+        {c.mode === 'wifi' && !/wi-?fi/i.test(c.title || '') && <div className="vxa-over">WI-FI GRÁTIS</div>}
+        <div className="vxa-qr-title">{c.title}</div>
+        {c.subtitle && <div className="vxa-qr-sub">{c.subtitle}</div>}
+        {c.mode === 'wifi' && c.ssid && (
+          <div className="vxa-qr-facts">
+            <span><small>Rede</small>{c.ssid}</span>
+            {c.password && c.showPassword !== false && <span><small>Senha</small>{c.password}</span>}
+          </div>
+        )}
+        {c.mode === 'pix' && (
+          <div className="vxa-qr-facts">
+            {amount ? <span><small>Valor</small>R$ {formatMoney(amount)}</span> : null}
+            {c.pixName && <span><small>Para</small>{c.pixName}</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Google Sheets ---------------- */
+
+function Sheet({ c, table, status, portrait }) {
+  if (!table || !table.rows?.length) {
+    return (
+      <div className="vxa-center">
+        {c.title && <div className="vxa-ticker-title" style={{ fontSize: 96 }}>{c.title}</div>}
+        <div className="vxa-muted" style={{ fontSize: 44 }}>{status === 'error' ? 'Não consegui ler a planilha. Ela está compartilhada para qualquer pessoa com o link?' : 'Carregando a planilha…'}</div>
+      </div>
+    );
+  }
+  const n = table.rows.length + (table.head ? 1 : 0);
+  const avail = (portrait ? 1920 : 1080) - 140 - (c.title ? 170 : 0);
+  const fs = Math.max(22, Math.min(56, Math.floor(avail / (n * 1.9))));
+  return (
+    <div className="vxa-sheet">
+      {c.title && <div className="vxa-price-title vxa-sheet-title">{c.title}</div>}
+      <table style={{ fontSize: fs }}>
+        {table.head && <thead><tr>{table.head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>}
+        <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((cell, j) => <td key={j}>{cell}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ---------------- Estúdio ---------------- */
+
+const ICON_PATHS = {
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.5" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  alert: <><path d="M12 3l10 18H2L12 3z" /><path d="M12 10v5M12 18v.5" /></>,
+  heart: <path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z" />,
+  star: <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z" />,
+  gift: <><rect x="3" y="9" width="18" height="12" rx="1" /><path d="M3 13h18M12 9v12M12 9c-2-4-6-4-6-1.5S9 9 12 9zm0 0c2-4 6-4 6-1.5S15 9 12 9z" /></>,
+};
+
+function StudioIcon({ name, size = 200 }) {
+  return (
+    <svg className="vxa-studio-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {ICON_PATHS[name] || ICON_PATHS.info}
+    </svg>
+  );
+}
+
+function Studio({ c, image, portrait }) {
+  const f = studioFields(c.template, c.fields);
+  const tpl = c.template || 'offer';
+  const img = image ? <div className={`vxa-studio-img ${tpl === 'welcome' ? 'is-logo' : ''}`}><img src={image} alt="" /></div> : null;
+  const layout = `vxa-studio vxa-studio-${tpl} ${img ? 'has-img' : ''} ${portrait ? 'col' : ''}`;
+
+  if (tpl === 'notice') {
+    return (
+      <div className={layout}>
+        <div className="vxa-center">
+          <StudioIcon name={f.icon} size={portrait ? 260 : 220} />
+          {f.overline && <div className="vxa-over">{f.overline}</div>}
+          <div className="vxa-studio-title">{f.title}</div>
+          {f.text && <div className="vxa-studio-text">{f.text}</div>}
+        </div>
+      </div>
+    );
+  }
+  if (tpl === 'welcome') {
+    return (
+      <div className={layout}>
+        <div className="vxa-center">
+          {img}
+          {f.overline && <div className="vxa-over">{f.overline}</div>}
+          <div className="vxa-studio-title">{f.title}</div>
+          {f.text && <div className="vxa-studio-text">{f.text}</div>}
+        </div>
+      </div>
+    );
+  }
+  if (tpl === 'menu') {
+    const lines = studioLines(f.lines);
+    return (
+      <div className={layout}>
+        <div className="vxa-studio-body">
+          {f.overline && <div className="vxa-over">{f.overline}</div>}
+          <div className="vxa-studio-title">{f.title}</div>
+          <ul className="vxa-studio-list">
+            {lines.map((l, i) => (
+              <li key={i}><span>{l.name}</span><i />{l.price && <b>{parsePrice(l.price) != null ? `R$ ${formatMoney(parsePrice(l.price))}` : l.price}</b>}</li>
+            ))}
+          </ul>
+          {f.footnote && <div className="vxa-muted vxa-studio-foot">{f.footnote}</div>}
+        </div>
+        {img}
+      </div>
+    );
+  }
+  if (tpl === 'event') {
+    return (
+      <div className={layout}>
+        {img}
+        <div className="vxa-studio-body">
+          {f.overline && <div className="vxa-over">{f.overline}</div>}
+          <div className="vxa-studio-title">{f.title}</div>
+          <div className="vxa-studio-facts">
+            {f.date && <span><StudioIcon name="star" size={56} />{f.date}</span>}
+            {f.time && <span><StudioIcon name="clock" size={56} />{f.time}</span>}
+            {f.place && <span><StudioIcon name="info" size={56} />{f.place}</span>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // Oferta
+  const price = parsePrice(f.price);
+  const old = parsePrice(f.oldPrice);
+  return (
+    <div className={layout}>
+      {img}
+      <div className="vxa-studio-body">
+        {f.badge && <span className="vxa-studio-badge">{f.badge}</span>}
+        <div className="vxa-studio-title">{f.product}</div>
+        {f.detail && <div className="vxa-studio-text">{f.detail}</div>}
+        {old != null && price != null && old > price && <s className="vxa-studio-old">De R$ {formatMoney(old)}</s>}
+        {price != null && (
+          <div className="vxa-studio-price">
+            <small>{old != null && old > price ? 'por R$' : 'R$'}</small>{formatMoney(price)}{f.unit && <em>/{f.unit}</em>}
+          </div>
+        )}
+        {f.footnote && <div className="vxa-muted vxa-studio-foot">{f.footnote}</div>}
+      </div>
     </div>
   );
 }

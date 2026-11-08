@@ -1,6 +1,6 @@
 // O "cérebro" do player: pareamento por código, manifesto, pedidos e sinal de vida.
 import {
-  doc, collection, query, where, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, serverTimestamp, Timestamp,
+  doc, collection, query, where, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, getDocFromServer, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
 import { generatePairingCode, PAIRING_KIND, PAIRING_TTL_MS, HEARTBEAT_MS } from '@vertice/shared';
 import { fb, ensureDeviceUser } from './firebase.js';
@@ -277,11 +277,28 @@ export function createDevice(onChange) {
   }
 
   /* ---------- Sinal de vida ---------- */
+  // Diferença entre o relógio da TV e o do servidor (ms). O Video wall usa para as TVs trocarem juntas.
+  const skews = [];
+  async function measureClock(ref, t0) {
+    try {
+      const snap = await getDocFromServer(ref);
+      const t1 = Date.now();
+      const server = snap.get('lastSeen')?.toMillis?.();
+      if (!server || t1 - t0 > 4000) return; // rede lenta demais: medida ruim
+      skews.push(server - (t0 + t1) / 2);
+      if (skews.length > 5) skews.shift();
+      const sorted = [...skews].sort((a, b) => a - b);
+      set({ clockOffset: Math.round(sorted[Math.floor(sorted.length / 2)]) });
+    } catch { /* sem rede: fica a última medida */ }
+  }
+
   async function heartbeat() {
     if (!state.companyId || !state.screenId) return;
     const { db } = fb();
+    const ref = doc(db, 'companies', state.companyId, 'screens', state.screenId);
+    const t0 = Date.now();
     try {
-      await updateDoc(doc(db, 'companies', state.companyId, 'screens', state.screenId), {
+      await updateDoc(ref, {
         lastSeen: serverTimestamp(),
         appVersion: info.appVersion,
         platform: info.platform || 'web',
@@ -290,6 +307,8 @@ export function createDevice(onChange) {
         nowPlaying,
         syncState: state.sync,
       });
+      // A medida do relógio só faz falta no Video wall; nas outras telas economiza uma leitura.
+      if (state.manifest?.wall) measureClock(ref, t0);
     } catch (e) {
       console.warn('[vx] heartbeat', e.code || e);
       if (e.code === 'permission-denied' || e.code === 'not-found') verifyPairing();

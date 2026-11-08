@@ -1,5 +1,6 @@
 import { DEFAULT_IMAGE_SECONDS, ORDER_BOARD_DEFAULTS, DISPLAY_DEFAULTS, DISPLAY_LIMITS, FIT_MODES, MEDIA_ADJUST_LIMITS } from './constants.js';
 import { normalizeApp, appDefaultSeconds, priceListForTv } from './apps.js';
+import { wallForScreen, wallCell, normalizeWall } from './wall.js';
 
 /**
  * O MANIFESTO é o que deixa o player leve: em vez de a TV ouvir telas, grades,
@@ -69,7 +70,7 @@ export function expandPlaylist(playlist, mediaById, priceById = null) {
     .map((it, idx) => {
       const m = mediaById.get(it.mediaId);
       if (!m) return null;
-      if (m.type === 'app') return expandApp(playlist, it, idx, m, priceById);
+      if (m.type === 'app') return expandApp(playlist, it, idx, m, priceById, mediaById);
       if (!m.url) return null;
       const durationSec =
         m.type === 'video'
@@ -89,15 +90,25 @@ export function expandPlaylist(playlist, mediaById, priceById = null) {
         muted: !!m.muted,
         validFrom: laterDate(it.validFrom, m.validFrom),
         validTo: earlierDate(it.validTo, m.validTo),
+        ...(m.advertiserId ? { advertiserId: m.advertiserId } : {}),
       };
     })
     .filter(Boolean);
 }
 
 /** Aplicativo na playlist: não tem arquivo; leva o tipo, a configuração e (Price) a tabela. */
-function expandApp(playlist, it, idx, m, priceById) {
+function expandApp(playlist, it, idx, m, priceById, mediaById) {
   const app = normalizeApp(m.app);
   if (!app) return null;
+  // Peça do Estúdio com foto: a foto é baixada junto (funciona offline).
+  let extraAssets = null;
+  if (app.kind === 'studio' && app.config.imageMediaId) {
+    const img = mediaById?.get(app.config.imageMediaId);
+    if (img?.url && img.type === 'image') {
+      app.image = { mediaId: img.id, url: img.url };
+      extraAssets = [{ mediaId: img.id, url: img.url, ext: img.ext || guessExt(img), sizeBytes: img.sizeBytes || 0 }];
+    }
+  }
   if (app.kind === 'price') {
     // Sem o mapa de tabelas (ex.: só calculando a duração), o item vale; no manifesto, só com a tabela.
     if (priceById) {
@@ -119,6 +130,8 @@ function expandApp(playlist, it, idx, m, priceById) {
     muted: true,
     validFrom: laterDate(it.validFrom, m.validFrom),
     validTo: earlierDate(it.validTo, m.validTo),
+    ...(m.advertiserId ? { advertiserId: m.advertiserId } : {}),
+    ...(extraAssets ? { extraAssets } : {}),
   };
 }
 
@@ -137,7 +150,7 @@ function guessExt(m) {
  * @param {object[]} p.media  mídias da empresa
  * @param {object} [p.company]
  */
-export function buildManifest({ screen, schedules, playlists, media, company, priceLists }) {
+export function buildManifest({ screen, schedules, playlists, media, company, priceLists, walls }) {
   const mediaById = new Map((media || []).map((m) => [m.id, m]));
   const priceById = new Map((priceLists || []).map((l) => [l.id, l]));
   const playlistById = new Map((playlists || []).map((p) => [p.id, p]));
@@ -162,9 +175,20 @@ export function buildManifest({ screen, schedules, playlists, media, company, pr
   }
 
   const fallbackSchedule = applicable.find((s) => s.fallbackPlaylistId && playlistById.get(s.fallbackPlaylistId));
-  const fallback = fallbackSchedule
+  let fallback = fallbackSchedule
     ? expandPlaylist(playlistById.get(fallbackSchedule.fallbackPlaylistId), mediaById, priceById)
     : [];
+
+  // Video wall: a tela mostra só a playlist do wall (a programação dela fica parada enquanto estiver no wall).
+  let wall = null;
+  const w = wallForScreen(walls, screen.id);
+  if (w && playlistById.get(w.playlistId)) {
+    const nw = normalizeWall(w);
+    const cell = wallCell(nw, screen.id);
+    wall = { id: w.id, name: w.name || '', rows: nw.rows, cols: nw.cols, row: cell.row, col: cell.col, bezel: nw.bezel };
+    slots.length = 0;
+    fallback = expandPlaylist(playlistById.get(w.playlistId), mediaById, priceById);
+  }
 
   // Ajustes desta tela para mídias específicas valem mais que tudo (playlist, mídia e padrão).
   const overrides = screen.mediaOverrides || {};
@@ -180,7 +204,11 @@ export function buildManifest({ screen, schedules, playlists, media, company, pr
 
   const allItems = [...slots.flatMap((s) => s.items), ...fallback];
   // Só o que tem arquivo para baixar (aplicativos se montam na TV).
-  const assets = [...new Map(allItems.filter((it) => it.url).map((it) => [it.mediaId, it])).values()].map((it) => ({
+  const files = [
+    ...allItems.filter((it) => it.url),
+    ...allItems.flatMap((it) => it.extraAssets || []), // fotos das peças do Estúdio
+  ];
+  const assets = [...new Map(files.map((it) => [it.mediaId, it])).values()].map((it) => ({
     mediaId: it.mediaId,
     url: it.url,
     ext: it.ext,
@@ -203,6 +231,7 @@ export function buildManifest({ screen, schedules, playlists, media, company, pr
     },
     company: { name: company?.name || '' },
     orderBoard: { ...ORDER_BOARD_DEFAULTS, ...(screen.orderBoard || {}) },
+    wall,
     slots,
     fallback,
     assets,

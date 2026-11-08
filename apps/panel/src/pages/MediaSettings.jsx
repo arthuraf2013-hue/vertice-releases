@@ -15,7 +15,7 @@ function common(list, get) {
  * Ajustes de uma mídia ou de várias de uma vez.
  * Em lote, cada campo começa em "manter como está" e só o que você mudar é gravado.
  */
-export function MediaSettings({ items, onClose, onSave, readOnly }) {
+export function MediaSettings({ items, onClose, onSave, readOnly, advertisers = [] }) {
   const single = items.length === 1 ? items[0] : null;
   const images = items.filter((m) => m.type === 'image');
   const videos = items.filter((m) => m.type === 'video');
@@ -26,6 +26,7 @@ export function MediaSettings({ items, onClose, onSave, readOnly }) {
     muted: videos.length ? common(videos, (m) => (m.muted ? 'mute' : 'sound')) : KEEP,
     validFrom: common(items, (m) => m.validFrom || ''),
     validTo: common(items, (m) => m.validTo || ''),
+    advertiserId: common(items, (m) => m.advertiserId || ''),
   }), [items]); // eslint-disable-line react-hooks/exhaustive-deps
   const [f, setF] = useState(initial);
   const [applyToPlaylists, setApplyToPlaylists] = useState(true);
@@ -33,7 +34,7 @@ export function MediaSettings({ items, onClose, onSave, readOnly }) {
   const [err, setErr] = useState('');
   const set = (patch) => setF((x) => ({ ...x, ...patch }));
   const changed = (k) => f[k] !== initial[k] && f[k] !== KEEP;
-  const dirty = ['name', 'duration', 'fit', 'muted', 'validFrom', 'validTo'].some(changed);
+  const dirty = ['name', 'duration', 'fit', 'muted', 'validFrom', 'validTo', 'advertiserId'].some(changed);
 
   const save = async () => {
     setErr('');
@@ -54,6 +55,7 @@ export function MediaSettings({ items, onClose, onSave, readOnly }) {
       if (changed('muted') && m.type === 'video') p.muted = f.muted === 'mute';
       if (changed('validFrom')) p.validFrom = f.validFrom || null;
       if (changed('validTo')) p.validTo = f.validTo || null;
+      if (changed('advertiserId')) p.advertiserId = f.advertiserId || null;
       return p;
     };
     setBusy(true);
@@ -120,6 +122,9 @@ export function MediaSettings({ items, onClose, onSave, readOnly }) {
             <DateField label="Exibir até" value={f.validTo} onChange={(validTo) => set({ validTo })} />
           </div>
           <p className="vx-help">Fora dessas datas a mídia sai das TVs sozinha, em todas as playlists. Vazio = sem limite.</p>
+          <Select label="Anunciante" value={f.advertiserId} onChange={(e) => set({ advertiserId: e.target.value })}
+            help="As exibições desta mídia entram no relatório do anunciante (Anunciantes e Relatórios)."
+            options={[...(f.advertiserId === KEEP ? [keepOpt] : []), { value: '', label: 'Nenhum (conteúdo próprio)' }, ...advertisers.map((a) => ({ value: a.id, label: a.name }))]} />
           {err && <div className="vx-alert vx-alert-offline">{err}</div>}
         </fieldset>
       </div>

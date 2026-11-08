@@ -140,7 +140,7 @@ export function createDemoBackend() {
     const col = (name) => [...store.entries()].filter(([p]) => p.startsWith(`${path}/${name}/`) && p.split('/').length === 4).map(([p, d]) => ({ id: p.split('/').pop(), ...d }));
     const schedules = col('schedules').filter((x) => x.status === 'published');
     for (const screen of col('screens')) {
-      store.set(`${path}/manifests/${screen.id}`, buildManifest({ screen, schedules, playlists: col('playlists'), media: col('media'), company, priceLists: col('priceLists') }));
+      store.set(`${path}/manifests/${screen.id}`, buildManifest({ screen, schedules, playlists: col('playlists'), media: col('media'), company, priceLists: col('priceLists'), walls: col('videowalls') }));
     }
   }
   const companyId = 'demo';

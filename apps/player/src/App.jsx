@@ -9,6 +9,7 @@ import { OperatorMenu } from './ui/OperatorMenu.jsx';
 import { createUpdater } from './services/updater.js';
 import { startRemote } from './services/remote.js';
 import { createStats } from './services/stats.js';
+import { WallPlayback } from './ui/WallPlayback.jsx';
 import { demoState, demoReady } from './demo.js';
 
 export function App() {
@@ -76,7 +77,11 @@ function Screen({ state, device, updater, remote, stats, signals }) {
     const firstSync = state.sync?.status === 'syncing' && state.sync.done === 0 && network?.online === false;
     const content = (
       <>
-        <Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
+        {manifest.wall ? (
+          <WallPlayback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} clockOffset={state.clockOffset || 0} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
+        ) : (
+          <Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
+        )}
         {empty && <SystemScreen variant={firstSync ? 'syncing' : 'empty'} network={network} screenCode={manifest.screen?.code} companyName={manifest.company?.name} />}
       </>
     );
