@@ -146,8 +146,14 @@ jobs:
           # Texto copiado no Windows (Set-Clipboard) chega com \r e quebra de linha no fim: tira antes de usar.
           printf '%s\n' "$PLAYER_ENV" | tr -d '\r' > apps/player/.env
           grep -q '^VITE_' apps/player/.env || { echo "::error::O secret PLAYER_ENV não tem as linhas VITE_ do apps/player/.env."; exit 1; }
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -d > apps/player/android/app/vertice-debug.keystore \
-            || { echo "::error::O secret ANDROID_KEYSTORE_BASE64 não é um base64 válido. Gere de novo a partir do vertice-debug.keystore."; exit 1; }
+          # Texto colado pode trazer sujeira invisível (espaço não separável, BOM, aspas) ou as linhas
+          # "-----BEGIN/END-----" do certutil: fica só o que é base64. O keytool abaixo confere a chave.
+          B64=$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '\r' | sed '/^-----/d' | tr -cd 'A-Za-z0-9+/=')
+          while [ $(( ${#B64} % 4 )) -ne 0 ]; do B64="$B64="; done
+          echo "Chave do APK: ${#ANDROID_KEYSTORE_BASE64} caracteres no secret, ${#B64} depois de limpar (a do PC dá 3576)."
+          printf '%s' "$B64" | base64 -d > apps/player/android/app/vertice-debug.keystore \
+            || { echo "::error::O secret ANDROID_KEYSTORE_BASE64 não é um base64 válido (${#B64} caracteres depois de limpar; o certo é 3576). Cole de novo o conteúdo de .atualizacoes/keystore-base64.txt."; exit 1; }
+          echo "Impressão da chave (sha256): $(sha256sum apps/player/android/app/vertice-debug.keystore | cut -c1-16) (a do PC: 6fe4b187e02fcfe4)"
           keytool -list -keystore apps/player/android/app/vertice-debug.keystore -storepass android -alias androiddebugkey > /dev/null \
             || { echo "::error::A chave do APK (ANDROID_KEYSTORE_BASE64) não abre com a senha/apelido esperados (android / androiddebugkey)."; exit 1; }
 
