@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { ROLE_LABEL } from '@vertice/shared';
 import { useSession } from '../session.jsx';
 import { api, isDemo, desktopConfigFile } from '../data/api.js';
 import { Icon } from './Icon.jsx';
 import { Logo } from './kit.jsx';
 import { AppUpdate } from './AppUpdate.jsx';
+import { rebuildManifests } from '../data/manifests.js';
 
 const NAV = [
   ['PAINEL', [['/', 'dashboard', 'Dashboard']]],
@@ -15,8 +16,13 @@ const NAV = [
   ['GESTÃO', [['/empresa', 'building', 'Empresa'], ['/downloads', 'download', 'Downloads']]],
 ];
 
+const VETTA_NAV = ['VETTA SISTEMAS', [['/vetta', 'key', 'Clientes']]];
+
 export function Shell() {
   const loc = useLocation();
+  const { isVetta, company } = useSession();
+  // Conta só da Vetta (sem empresa): só o console.
+  const nav = company ? (isVetta ? [...NAV, VETTA_NAV] : NAV) : [VETTA_NAV];
   const [navOpen, setNavOpen] = useState(false);
   useEffect(() => setNavOpen(false), [loc.pathname]);
   return (
@@ -24,7 +30,7 @@ export function Shell() {
       <nav className={`vx-nav ${navOpen ? 'is-open' : ''}`} aria-label="Principal">
         <div className="vx-nav-brand"><Logo size={36} /></div>
         <div className="vx-nav-scroll">
-        {NAV.map(([group, items]) => (
+        {nav.map(([group, items]) => (
           <div key={group}>
             <div className="vx-nav-group vx-overline">{group}</div>
             {items.map(([to, icon, label]) => (
@@ -57,10 +63,35 @@ export function Shell() {
             )}
           </div>
         )}
+        {company && <LicenseBar />}
         <main className="vx-content">
           <Outlet />
         </main>
       </div>
+    </div>
+  );
+}
+
+/** Aviso de licença: teste acabando, mensalidade vencida ou telas paradas. */
+function LicenseBar() {
+  const { license, settings, companyId, can } = useSession();
+  // Enquanto bloqueada, nada foi publicado: ao voltar, publica tudo que mudou nesse meio-tempo.
+  useEffect(() => {
+    const key = `vx-blocked-${companyId}`;
+    let was = false;
+    try { was = localStorage.getItem(key) === '1'; localStorage.setItem(key, license.blocked ? '1' : '0'); } catch { /* sem storage */ }
+    if (was && !license.blocked && can('editor')) rebuildManifests(companyId).catch(() => {});
+  }, [license.blocked, companyId]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!license.warn) return null;
+  const wa = settings.supportWhatsApp;
+  return (
+    <div className={`vx-license-bar is-${license.blocked ? 'blocked' : 'warn'}`} role={license.blocked ? 'alert' : 'status'}>
+      <Icon name={license.blocked ? 'alert' : 'clock'} />
+      <span><b>{license.title}.</b> {license.text}</span>
+      <span className="vx-license-actions">
+        <Link to="/empresa?aba=licenca">Ver plano</Link>
+        {wa && <a href={`https://wa.me/${wa}?text=${encodeURIComponent('Olá! Quero regularizar a assinatura do Vértice.')}`} target="_blank" rel="noreferrer">Falar com a Vetta</a>}
+      </span>
     </div>
   );
 }
@@ -70,13 +101,13 @@ function Topbar({ onMenu }) {
   return (
     <header className="vx-topbar">
       <button type="button" className="vx-btn vx-btn-icon vx-menu-btn" onClick={onMenu} aria-label="Abrir menu"><Icon name="layers" /></button>
-      <UnitPicker company={company} units={units} value={unitId} onChange={setUnitId} />
+      {company ? <UnitPicker company={company} units={units} value={unitId} onChange={setUnitId} /> : <span className="vx-unit-company" style={{ fontWeight: 600 }}>Console da Vetta Sistemas</span>}
       <div className="vx-topbar-right">
         <button type="button" className="vx-btn vx-btn-sm" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-pressed={theme === 'dark'}>
           <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
           {theme === 'dark' ? 'Painel claro' : 'Sala de controle'}
         </button>
-        <UserMenu name={member?.name || user?.name || user?.email} email={user?.email} role={ROLE_LABEL[role]} />
+        <UserMenu name={member?.name || user?.name || user?.email} email={user?.email} role={company ? ROLE_LABEL[role] : 'Vetta Sistemas'} />
       </div>
     </header>
   );

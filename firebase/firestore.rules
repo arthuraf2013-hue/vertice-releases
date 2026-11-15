@@ -22,24 +22,54 @@ service cloud.firestore {
     function isIntegration(cid) { return isDevice(cid) && get(deviceDoc()).data.kind == 'integration'; }
 
     function changesOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // ---------- Vetta Sistemas (console interno) ----------
+    // Quem tem platformAdmins/{uid} administra todas as empresas. O documento é criado à mão no console do Firebase.
+    function isVetta() { return signedIn() && exists(/databases/$(database)/documents/platformAdmins/$(uid())); }
+    function settingsPath() { return /databases/$(database)/documents/platform/settings; }
+
+    // ---------- Licença (mesma conta de packages/shared/src/license.js) ----------
+    function companyData(cid) { return get(/databases/$(database)/documents/companies/$(cid)).data; }
+    function licenseOk(c) {
+      let st = c.get('status', 'active');
+      return (st == 'active'
+                && (c.get('paidUntil', null) == null
+                    || c.paidUntil + duration.value(c.get('graceDays', 5), 'd') > request.time))
+          || (st == 'trial' && c.get('trialEndsAt', null) != null && c.trialEndsAt > request.time);
+    }
+    function licensed(cid) { return licenseOk(companyData(cid)); }
     function authEmail() { return request.auth.token.email.lower(); }
+
+    // ---------- Plataforma ----------
+    // Configurações gerais (cadastro aberto, dias de teste, contato). Leitura pública: a tela de cadastro usa.
+    match /platform/{docId} {
+      allow get: if true;
+      allow write: if isVetta();
+    }
+    match /platformAdmins/{adminUid} {
+      allow get: if signedIn() && uid() == adminUid;
+      allow list: if isVetta();
+      allow write: if false;
+    }
 
     // ---------- Perfil: liga o usuário à empresa ----------
     match /users/{userId} {
       allow get: if signedIn() && uid() == userId;
       // Só cria o próprio perfil, e só se o vínculo de membro existir ao fim do mesmo lote.
-      allow create: if signedIn() && uid() == userId
+      allow create, update: if signedIn() && uid() == userId
         && existsAfter(/databases/$(database)/documents/companies/$(request.resource.data.companyId)/members/$(uid()));
       allow delete: if hasRole(resource.data.companyId, 'owner');
     }
 
     // ---------- Convites (id = e-mail em minúsculas) ----------
     match /invites/{email} {
-      allow get: if signedIn() && (authEmail() == email || hasRole(resource.data.companyId, 'admin'));
-      allow list: if hasRole(resource.data.companyId, 'admin');
-      allow create, update: if hasRole(request.resource.data.companyId, 'admin')
-        && request.resource.data.role in ['viewer', 'editor', 'admin'];
-      allow delete: if signedIn() && (authEmail() == email || hasRole(resource.data.companyId, 'admin'));
+      allow get: if signedIn() && (authEmail() == email || hasRole(resource.data.companyId, 'admin') || isVetta());
+      allow list: if hasRole(resource.data.companyId, 'admin') || isVetta();
+      allow create, update: if (hasRole(request.resource.data.companyId, 'admin')
+          && request.resource.data.role in ['viewer', 'editor', 'admin'])
+        // A Vetta cria a empresa do cliente e convida o dono.
+        || (isVetta() && request.resource.data.role in ['viewer', 'editor', 'admin', 'owner']);
+      allow delete: if signedIn() && (authEmail() == email || hasRole(resource.data.companyId, 'admin') || isVetta());
     }
 
     // ---------- Pareamento por código ----------
@@ -78,20 +108,63 @@ service cloud.firestore {
 
     // ---------- Empresa ----------
     match /companies/{cid} {
-      allow get: if isMember(cid);
-      // Toda conta nova começa no plano Start. Plano, limite e cota só mudam pela Vetta (Admin SDK/console).
-      allow create: if signedIn()
+      allow get: if isMember(cid) || isVetta();
+      allow list: if isVetta();
+      // Cadastro aberto: conta nova cria a própria empresa no plano Start, em teste grátis.
+      // Plano, limites, vencimento e situação só mudam pela Vetta (console interno ou Admin SDK).
+      allow create: if isVetta() || (signedIn()
+        && (!exists(settingsPath()) || get(settingsPath()).data.get('signupOpen', true) == true)
+        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'plan', 'screenLimit', 'storageQuotaMB',
+             'storageUsedBytes', 'screenSeq', 'screenCount', 'status', 'trialEndsAt', 'createdAt', 'phone', 'city', 'source'])
         && request.resource.data.ownerUid == uid()
         && request.resource.data.plan == 'start'
         && request.resource.data.screenLimit == 3
         && request.resource.data.storageQuotaMB == 2048
         && request.resource.data.storageUsedBytes == 0
-        && request.resource.data.screenSeq == 0;
-      allow update: if (hasRole(cid, 'admin') && changesOnly(['name', 'cnpj', 'phone', 'city', 'screenSeq']))
-        || (hasRole(cid, 'editor') && changesOnly(['storageUsedBytes']));
+        && request.resource.data.screenSeq == 0
+        && request.resource.data.screenCount == 0
+        && request.resource.data.status == 'trial'
+        && request.resource.data.trialEndsAt > request.time
+        && request.resource.data.trialEndsAt <= request.time + duration.value(
+             (exists(settingsPath()) ? get(settingsPath()).data.get('trialDays', 14) : 14) + 1, 'd'));
+      allow update: if isVetta()
+        || (hasRole(cid, 'admin') && changesOnly(['name', 'cnpj', 'phone', 'city', 'screenSeq', 'alerts']))
+        || (hasRole(cid, 'editor') && changesOnly(['storageUsedBytes']))
+        // Contador de telas: só muda junto com a criação ou a exclusão daquela tela (screenOp = id dela),
+        // e nunca passa do limite do plano.
+        || (hasRole(cid, 'admin') && changesOnly(['screenSeq', 'screenCount', 'screenOp'])
+            && request.resource.data.screenOp is string
+            && ((request.resource.data.screenCount == resource.data.get('screenCount', 0) + 1
+                  && request.resource.data.screenCount <= resource.data.get('screenLimit', 1000)
+                  && licenseOk(resource.data)
+                  && !exists(/databases/$(database)/documents/companies/$(cid)/screens/$(request.resource.data.screenOp))
+                  && existsAfter(/databases/$(database)/documents/companies/$(cid)/screens/$(request.resource.data.screenOp)))
+              || (request.resource.data.screenCount == resource.data.get('screenCount', 0) - 1
+                  && request.resource.data.screenCount >= 0
+                  && exists(/databases/$(database)/documents/companies/$(cid)/screens/$(request.resource.data.screenOp))
+                  && !existsAfter(/databases/$(database)/documents/companies/$(cid)/screens/$(request.resource.data.screenOp)))));
+
+      // Pagamentos registrados pela Vetta. O dono e os administradores veem o histórico.
+      match /payments/{pid} {
+        allow read: if hasRole(cid, 'admin') || isVetta();
+        allow write: if isVetta();
+      }
+      // Avisos enviados pelo serviço de alertas (servers/worker, Admin SDK).
+      match /alertLog/{lid} {
+        allow read: if isMember(cid) || isVetta();
+        allow write: if false;
+      }
+      // Teste de alerta: o admin pede, o serviço de alertas envia e apaga.
+      match /alertTests/{tid} {
+        allow read: if hasRole(cid, 'admin');
+        allow create: if hasRole(cid, 'admin')
+          && request.resource.data.keys().hasOnly(['at', 'by'])
+          && request.resource.data.at == request.time;
+        allow delete: if hasRole(cid, 'admin');
+      }
 
       match /members/{memberUid} {
-        allow read: if isMember(cid);
+        allow read: if isMember(cid) || isVetta();
         allow create: if signedIn() && memberUid == uid() && (
           // Dono criando a própria empresa no mesmo lote.
           (request.resource.data.role == 'owner' && getAfter(/databases/$(database)/documents/companies/$(cid)).data.ownerUid == uid())
@@ -161,14 +234,24 @@ service cloud.firestore {
       }
 
       // O que cada TV toca, compilado pelo painel. A TV lê só o dela.
+      // Com a licença bloqueada, a TV deixa de receber e o painel deixa de publicar.
       match /manifests/{sid} {
-        allow read: if isMember(cid) || isScreen(cid, sid);
-        allow write: if hasRole(cid, 'editor');
+        allow read: if isMember(cid) || (isScreen(cid, sid) && licensed(cid));
+        allow create, update: if hasRole(cid, 'editor') && licensed(cid);
+        allow delete: if hasRole(cid, 'editor');
       }
 
       match /screens/{sid} {
-        allow read: if isMember(cid) || isScreen(cid, sid);
-        allow create, delete: if hasRole(cid, 'admin');
+        allow read: if isMember(cid) || isScreen(cid, sid) || isVetta();
+        // Tela nova só junto com o contador da empresa (que confere o limite do plano).
+        allow create: if hasRole(cid, 'admin')
+          && getAfter(/databases/$(database)/documents/companies/$(cid)).data.get('screenOp', '') == sid
+          && getAfter(/databases/$(database)/documents/companies/$(cid)).data.get('screenCount', 0)
+               == companyData(cid).get('screenCount', 0) + 1;
+        allow delete: if isVetta() || (hasRole(cid, 'admin')
+          && (companyData(cid).get('screenCount', 0) == 0
+              || getAfter(/databases/$(database)/documents/companies/$(cid)).data.get('screenCount', 0)
+                   == companyData(cid).get('screenCount', 0) - 1));
         // A TV só atualiza o próprio sinal de vida, com o horário do servidor.
         allow update: if hasRole(cid, 'admin')
           || (isScreen(cid, sid)
@@ -238,6 +321,11 @@ service cloud.firestore {
         allow update: if isIntegration(cid) && resource.data.integrationUid == uid() && validOrder();
         allow delete: if (isIntegration(cid) && resource.data.integrationUid == uid()) || hasRole(cid, 'admin');
       }
+    }
+
+    // Console da Vetta: situação de todas as telas (consulta de grupo).
+    match /{path=**}/screens/{sid} {
+      allow list: if isVetta();
     }
   }
 }

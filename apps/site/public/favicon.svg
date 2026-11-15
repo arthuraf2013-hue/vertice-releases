@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Vértice">
+  <rect width="512" height="512" rx="112" fill="#141b26"/>
+  <rect x="72" y="104" width="368" height="264" rx="40" fill="#1b2431" stroke="#34445e" stroke-width="8"/>
+  <polygon points="120,320 256,152 198,320" fill="#34445e"/>
+  <polygon points="198,320 256,152 314,320" fill="#293548"/>
+  <polygon points="314,320 256,152 392,320" fill="#0b1017"/>
+  <polyline points="120,320 256,152 392,320" fill="none" stroke="#d9a84e" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="256" cy="152" r="18" fill="#d9a84e"/>
+  <rect x="196" y="392" width="120" height="20" rx="10" fill="#34445e"/>
+</svg>

@@ -33,6 +33,7 @@ export function createDemoBackend() {
       const last = keys[keys.length - 1];
       if (v === DELETE) delete o[last];
       else if (v === NOW) o[last] = Date.now();
+      else if (v instanceof Date) o[last] = v.getTime();
       else if (v && typeof v === 'object' && '__inc' in v) o[last] = (o[last] || 0) + v.__inc;
       else o[last] = clone(v);
     }
@@ -72,7 +73,7 @@ export function createDemoBackend() {
     pending = true;
     queueMicrotask(() => {
       pending = false;
-      for (const l of listeners) l.cb(l.isCol ? readCol(l.path, l.q) : readDoc(l.path));
+      for (const l of listeners) l.group ? l.cb() : l.cb(l.isCol ? readCol(l.path, l.q) : readDoc(l.path));
     });
   };
 
@@ -197,6 +198,8 @@ export function createDemoBackend() {
         authCbs.forEach((cb) => cb(user));
       },
       async resetPassword() {},
+      async platformSettings() { return readDoc('platform/settings') || {}; },
+      async acceptInvite() { return false; },
     },
 
     watchDoc(path, cb) {
@@ -212,6 +215,14 @@ export function createDemoBackend() {
       return () => listeners.delete(l);
     },
     getDoc: async (path) => readDoc(path),
+    watchGroup(name, cb) {
+      const re = new RegExp(`^(.+/)?${name}/[^/]+$`);
+      const read = () => [...store.keys()].filter((k) => re.test(k)).map((k) => ({ id: k.split('/').pop(), path: k, ...clone(store.get(k)) }));
+      const l = { path: '__group__', isCol: true, q: null, cb: () => cb(read()), group: true };
+      listeners.add(l);
+      queueMicrotask(() => cb(read()));
+      return () => listeners.delete(l);
+    },
     getCol: async (path, q) => readCol(path, q),
     newId: () => newId(),
     set: async (path, data, merge = false) => write(path, data, { merge }),
@@ -248,7 +259,7 @@ export function createDemoBackend() {
           orderBoard: ORDER_BOARD_DEFAULTS, deviceUid: `dev-${id}`, platform: 'android', appVersion: '0.1.0',
           pairedAt: NOW, lastSeen: NOW, simulate: 'live',
         });
-        write(`companies/${cid}`, { screenSeq: seq }, { update: true });
+        write(`companies/${cid}`, { screenSeq: seq, screenCount: (company.screenCount || 0) + 1, screenOp: id }, { update: true });
         return { id };
       }
       const id = `int-${newId()}`;

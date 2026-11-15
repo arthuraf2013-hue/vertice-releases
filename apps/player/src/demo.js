@@ -1,4 +1,4 @@
-// Estados de demonstração do player: abra com ?demo=pairing|play|overlay|sidebar|board|empty|offline
+// Estados de demonstração do player: abra com ?demo=pairing|play|overlay|sidebar|board|empty|offline|blocked
 // Servem para conferir o visual sem TV e sem Firebase.
 // Extras: &rot=90 &zoom=95 &x=2 &y=-1 &fit=blur &calib=1 &poster=1 (arte vertical 9:16)
 import { ORDER_BOARD_DEFAULTS, priceListForTv } from '@vertice/shared';
@@ -103,6 +103,7 @@ export function demoState(kind) {
     case 'pairing': return { ...base, phase: 'pairing', code: '4F7K2Q', codeExpiresAt: Date.now() + 27 * MIN, manifest: null };
     case 'offline': return { ...base, phase: 'error', manifest: null };
     case 'empty': return { ...base, manifest: manifest('off', []) };
+    case 'blocked': return { ...base, manifest: manifest('off'), licenseBlocked: true };
     case 'overlay': return { ...base, manifest: manifest('overlay'), orders, addLater: true };
     case 'sidebar': return { ...base, manifest: manifest('sidebar'), orders, addLater: true };
     case 'board': return { ...base, manifest: manifest('full'), orders, addLater: true };

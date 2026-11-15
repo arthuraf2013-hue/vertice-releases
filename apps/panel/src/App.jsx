@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { SessionProvider, useSession } from './session.jsx';
 import { ToastProvider, Loading, EmptyState, Button, Logo } from './ui/kit.jsx';
@@ -19,6 +20,7 @@ import { Reports } from './pages/Reports.jsx';
 import { Advertisers } from './pages/Advertisers.jsx';
 import { Studio } from './pages/Studio.jsx';
 import { VideoWalls } from './pages/VideoWalls.jsx';
+import { Console } from './pages/Console.jsx';
 
 // HashRouter: funciona igual no Firebase Hosting e dentro do Electron, sem regra de rewrite.
 export function App() {
@@ -38,14 +40,18 @@ function Gate() {
   if (s.loading) return <div className="vx-boot"><Logo size={48} /><Loading /></div>;
   if (!s.user) return <Login />;
   if (!s.companyId || !s.company) {
-    return (
-      <div className="vx-boot">
-        <EmptyState icon="building" title="Sua conta ainda não está ligada a uma empresa"
-          action={<Button onClick={() => api.auth.signOut()} icon="logout">Sair</Button>}>
-          Peça ao administrador da sua empresa um convite para o e-mail {s.user.email}.
-        </EmptyState>
-      </div>
-    );
+    // Conta só da Vetta: abre direto no console.
+    if (s.isVetta) {
+      return (
+        <Routes>
+          <Route element={<Shell />}>
+            <Route path="vetta" element={<Console />} />
+            <Route path="*" element={<Navigate to="/vetta" replace />} />
+          </Route>
+        </Routes>
+      );
+    }
+    return <NoCompany email={s.user.email} />;
   }
   return (
     <Routes>
@@ -65,8 +71,31 @@ function Gate() {
         <Route path="videowall" element={<VideoWalls />} />
         <Route path="empresa" element={<Company />} />
         <Route path="downloads" element={<Downloads />} />
+        {s.isVetta && <Route path="vetta" element={<Console />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+  );
+}
+
+/** Conta sem empresa: pode ter um convite esperando (ex.: dono de um cliente criado pela Vetta). */
+function NoCompany({ email }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const check = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const ok = await api.auth.acceptInvite();
+      if (!ok) setMsg('Ainda não há convite para este e-mail.');
+    } catch (e) { setMsg(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="vx-boot">
+      <EmptyState icon="building" title="Sua conta ainda não está ligada a uma empresa"
+        action={<div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}><Button variant="primary" loading={busy} onClick={check} icon="sync">Procurar convite</Button><Button onClick={() => api.auth.signOut()} icon="logout">Sair</Button></div>}>
+        Peça ao administrador da sua empresa (ou à Vetta Sistemas) um convite para o e-mail {email}.
+        {msg && <><br /><b>{msg}</b></>}
+      </EmptyState>
+    </div>
   );
 }

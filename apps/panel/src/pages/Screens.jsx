@@ -235,10 +235,14 @@ function ScreenEditor({ screen, groups, now, mediaById, onClose }) {
       message: 'A TV para de exibir o conteúdo e volta para a tela de pareamento. O código VTX não é reaproveitado.',
     });
     if (!ok) return;
+    // O contador de telas do plano desce junto (as regras conferem que é a mesma tela).
+    const company = await api.getDoc(base);
+    const count = company?.screenCount || 0;
     await api.batch([
       { op: 'delete', path: `${base}/screens/${screen.id}` },
       { op: 'delete', path: `${base}/manifests/${screen.id}` },
       ...(screen.deviceUid ? [{ op: 'delete', path: `devices/${screen.deviceUid}` }] : []),
+      ...(count > 0 ? [{ op: 'update', path: base, data: { screenCount: count - 1, screenOp: screen.id } }] : []),
     ]);
     toast('Tela desconectada.');
     onClose();

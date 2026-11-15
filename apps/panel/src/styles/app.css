@@ -62,6 +62,14 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .vx-menu-btn { display: none; }
 .vx-demo-bar { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-8); background: var(--status-sync-soft); color: var(--status-sync); font-size: 13px; font-weight: 600; }
 .vx-demo-bar code { background: transparent; color: inherit; padding: 0; }
+.vx-license-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3) var(--space-8); font-size: 14px; border-bottom: 1px solid var(--line); }
+.vx-license-bar svg { flex: none; }
+.vx-license-bar.is-warn { background: var(--status-warn-soft); color: var(--ink); }
+.vx-license-bar.is-warn > svg { color: var(--status-warn); }
+.vx-license-bar.is-blocked { background: var(--status-offline-soft); color: var(--ink); }
+.vx-license-bar.is-blocked > svg { color: var(--status-offline); }
+.vx-license-actions { margin-left: auto; display: flex; gap: var(--space-4); font-weight: 600; }
+.vx-license-actions a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .vx-content { padding: var(--space-8); max-width: 1440px; width: 100%; margin: 0 auto; }
 .vx-page { display: flex; flex-direction: column; gap: var(--space-6); }
 .vx-boot { min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: var(--space-6); }
@@ -243,6 +251,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .vx-alert-warn > span { line-height: 20px; }
 .vx-alert-warn > .vx-ico { flex: none; margin-top: 2px; }
 .vx-alert-online { background: var(--status-online-soft); color: var(--status-online); }
+.vx-alert-sync { background: var(--status-sync-soft); color: var(--status-sync); }
 
 /* ---------- Tabela ---------- */
 .vx-table-wrap { overflow-x: auto; }
@@ -733,3 +742,21 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .vx-upd-head > div:first-child { display: flex; flex-direction: column; }
 .vx-upd-ver { font: 800 28px/1.1 var(--font-display); }
 .vx-upd-table td { vertical-align: middle; }
+
+/* ---------- Licença, alertas e console da Vetta ---------- */
+.vx-callout { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--surface); }
+.vx-callout > svg { flex: none; margin-top: 2px; }
+.vx-callout p { margin: 2px 0 0; color: var(--ink-muted); }
+.vx-callout.is-warn { background: var(--status-warn-soft); border-color: transparent; }
+.vx-callout.is-warn > svg { color: var(--status-warn); }
+.vx-callout.is-offline { background: var(--status-offline-soft); border-color: transparent; }
+.vx-callout.is-offline > svg { color: var(--status-offline); }
+.vx-kv { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--space-2) var(--space-4); margin: 0 0 var(--space-4); font-size: 14px; }
+.vx-kv dt { color: var(--ink-muted); }
+.vx-kv dd { margin: 0; }
+.vx-console-filters { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.vx-console-filters .vx-input { max-width: 280px; }
+.vx-client-name { display: flex; flex-direction: column; }
+.vx-client-name small { color: var(--ink-faint); font-size: 12px; }
+.vx-mono { font-family: var(--font-mono); font-size: 13px; }
+@media (max-width: 720px) { .vx-kv { grid-template-columns: 1fr; gap: 2px; } .vx-kv dd { margin-bottom: var(--space-2); } }

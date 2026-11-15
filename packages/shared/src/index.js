@@ -10,3 +10,4 @@ export * from './apps.js';
 export * from './qr.js';
 export * from './studio.js';
 export * from './wall.js';
+export * from './license.js';

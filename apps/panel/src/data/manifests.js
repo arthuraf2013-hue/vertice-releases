@@ -1,4 +1,4 @@
-import { buildManifest } from '@vertice/shared';
+import { buildManifest, licenseState } from '@vertice/shared';
 import { api } from './api.js';
 
 /**
@@ -18,6 +18,9 @@ export async function rebuildManifests(cid, screenIds = null) {
     api.getCol(`${base}/priceLists`),
     api.getCol(`${base}/videowalls`),
   ]);
+  // Licença bloqueada (teste acabou, mensalidade em atraso, suspensa): as regras recusam publicar.
+  // O aviso fica no topo do painel; aqui só não tenta.
+  if (licenseState(company).blocked) return 0;
   const targets = screenIds ? screens.filter((s) => screenIds.includes(s.id)) : screens;
   const ops = targets.map((screen) => ({
     op: 'set',

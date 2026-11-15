@@ -18,6 +18,7 @@ ${unit ? `<text x="${20 + price.length * 19}" y="128" font-family="Manrope,sans-
 }
 
 const MIN = 60_000;
+const DAY = 24 * 60 * MIN;
 
 export function seedDemo({ set }) {
   const now = Date.now();
@@ -27,8 +28,36 @@ export function seedDemo({ set }) {
   set(c, {
     name: 'Padaria Boa Massa', cnpj: '12.345.678/0001-90', phone: '(81) 3333-4444', city: 'Recife',
     ownerUid: 'demo-owner', plan: 'pro', screenLimit: 15, storageQuotaMB: 10240,
-    storageUsedBytes: 1.86 * 1024 ** 3, screenSeq: 6, createdAt: now - 40 * 24 * 60 * MIN,
+    storageUsedBytes: 1.86 * 1024 ** 3, screenSeq: 6, screenCount: 6, createdAt: now - 40 * 24 * 60 * MIN,
+    // ?licenca=vencida|teste|suspensa mostra os avisos de licença na demonstração.
+    status: 'active', paidUntil: now + 12 * DAY,
+    ...(typeof location !== 'undefined' ? ({
+      vencida: { paidUntil: now - 2 * DAY },
+      teste: { status: 'trial', trialEndsAt: now + 2 * DAY, paidUntil: null },
+      suspensa: { status: 'suspended' },
+    })[new URLSearchParams(location.search).get('licenca')] : null), graceDays: 5, monthlyPrice: 189.9, ownerEmail: 'cristina@boamassa.com.br',
+    alerts: { enabled: true, emails: ['cristina@boamassa.com.br'], whatsapps: ['5581999990000'], offlineMinutes: 15, quietStart: '22:00', quietEnd: '06:00' },
   });
+  set(`${c}/payments/p1`, { amount: 189.9, paidAt: now - 18 * DAY, method: 'Pix', months: 1, paidUntil: now + 12 * DAY, by: 'Vetta Sistemas' });
+  set(`${c}/payments/p2`, { amount: 189.9, paidAt: now - 48 * DAY, method: 'Pix', months: 1, paidUntil: now - 18 * DAY, by: 'Vetta Sistemas' });
+  set('platform/settings', { signupOpen: true, trialDays: 14, graceDays: 5, supportWhatsApp: '5581999990000', supportEmail: 'contato@vettasistemas.com.br' });
+  // Console da Vetta na demonstração: abra com ?vetta na URL.
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('vetta')) {
+    set('platformAdmins/demo-owner', { name: 'Vetta Sistemas' });
+    const clients = [
+      ['c-mercado', 'Mercado Bom Preço', 'Olinda', { plan: 'rede', screenLimit: 100, storageQuotaMB: 51200, status: 'active', paidUntil: now + 21 * DAY, monthlyPrice: 1490, screenCount: 32, storageUsedBytes: 18.2 * 1024 ** 3 }, 32, 30],
+      ['c-farma', 'Farmácia Vida', 'Recife', { plan: 'start', screenLimit: 3, storageQuotaMB: 2048, status: 'trial', trialEndsAt: now + 2 * DAY, screenCount: 2, storageUsedBytes: 0.3 * 1024 ** 3, source: 'cadastro' }, 2, 2],
+      ['c-acai', 'Açaí da Praça', 'Jaboatão', { plan: 'start', screenLimit: 3, storageQuotaMB: 2048, status: 'active', paidUntil: now - 3 * DAY, monthlyPrice: 89.9, screenCount: 3, storageUsedBytes: 0.9 * 1024 ** 3 }, 3, 1],
+      ['c-otica', 'Ótica Visão', 'Paulista', { plan: 'pro', screenLimit: 15, storageQuotaMB: 10240, status: 'suspended', paidUntil: now - 20 * DAY, monthlyPrice: 249.9, screenCount: 5, storageUsedBytes: 2.1 * 1024 ** 3 }, 5, 0],
+    ];
+    for (const [id, name, city, data, total, online] of clients) {
+      set(`companies/${id}`, { name, city, screenSeq: total, createdAt: now - 60 * DAY, graceDays: 5, ...data });
+      set(`companies/${id}/members/o-${id}`, { role: 'owner', name: `Dono ${name}`, email: `contato@${id.slice(2)}.com.br` });
+      for (let i = 1; i <= total; i++) {
+        set(`companies/${id}/screens/${id}-s${i}`, { name: `TV ${i}`, code: `VTX-${String(i).padStart(4, '0')}`, lastSeen: i <= online ? now - 30_000 : now - (2 + i) * 60 * MIN, appVersion: '0.3.7' });
+      }
+    }
+  }
   set(`${c}/members/demo-owner`, { role: 'owner', name: 'Cristina Albuquerque', email: 'cristina@boamassa.com.br', joinedAt: now - 40 * 1440 * MIN });
   set(`${c}/members/u-lucas`, { role: 'editor', name: 'Lucas Ferraz', email: 'lucas@boamassa.com.br', joinedAt: now - 12 * 1440 * MIN });
   set(`${c}/members/u-joana`, { role: 'viewer', name: 'Joana Prado', email: 'joana@boamassa.com.br', joinedAt: now - 3 * 1440 * MIN });

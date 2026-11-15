@@ -85,6 +85,7 @@ export const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export const DEFAULT_IMAGE_SECONDS = 10;
 
+// Limites de cada plano. O preço fica em cada empresa (monthlyPrice), definido pela Vetta no console.
 export const PLANS = {
   start: { name: 'Start', screens: 3, storageMB: 2048 },
   pro: { name: 'Pro', screens: 15, storageMB: 10240 },

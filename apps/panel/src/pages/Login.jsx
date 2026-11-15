@@ -2,21 +2,27 @@ import { useState } from 'react';
 import { api, isDemo } from '../data/api.js';
 import { Button, Input, Logo, Tabs } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
+import { useSession } from '../session.jsx';
+import { DEFAULT_TRIAL_DAYS } from '@vertice/shared';
 
 const AUTH_ERRORS = {
   'auth/invalid-credential': 'E-mail ou senha incorretos.',
   'auth/user-not-found': 'E-mail ou senha incorretos.',
   'auth/wrong-password': 'E-mail ou senha incorretos.',
   'auth/email-already-in-use': 'Já existe uma conta com este e-mail. Use "Entrar".',
-  'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
+  'auth/weak-password': 'A senha precisa ter pelo menos 8 caracteres.',
   'auth/invalid-email': 'Confira o e-mail digitado.',
   'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
   'auth/network-request-failed': 'Sem conexão com a internet.',
 };
 
 export function Login() {
-  const [tab, setTab] = useState('in');
-  const [f, setF] = useState({ name: '', companyName: '', email: '', password: '' });
+  const { settings } = useSession();
+  // O site (botão "Testar grátis") abre direto em "Criar conta": /app/#/?criar
+  const [tab, setTab] = useState(() => (/criar/.test(location.hash) ? 'up' : 'in'));
+  const [f, setF] = useState({ name: '', companyName: '', phone: '', city: '', email: '', password: '' });
+  const trialDays = settings?.trialDays || DEFAULT_TRIAL_DAYS;
+  const signupOpen = settings?.signupOpen !== false;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -28,7 +34,10 @@ export function Login() {
     setError('');
     try {
       if (tab === 'in') await api.auth.signIn(f.email.trim(), f.password);
-      else await api.auth.signUp({ ...f, email: f.email.trim() });
+      else {
+        if (!isDemo && f.password.length < 8) throw new Error('A senha precisa ter pelo menos 8 caracteres.');
+        await api.auth.signUp({ ...f, email: f.email.trim(), phone: f.phone.trim(), city: f.city.trim() });
+      }
     } catch (err) {
       setError(AUTH_ERRORS[err.code] || err.message);
     } finally {
@@ -67,12 +76,25 @@ export function Login() {
           <Tabs value={tab} onChange={(t) => { setTab(t); setError(''); }} tabs={[{ id: 'in', label: 'Entrar' }, { id: 'up', label: 'Criar conta' }]} />
           {tab === 'up' && (
             <>
+              <div className={`vx-alert ${signupOpen ? 'vx-alert-online' : 'vx-alert-sync'}`}>
+                <Icon name={signupOpen ? 'check' : 'key'} />
+                {signupOpen
+                  ? `${trialDays} dias grátis com tudo liberado, até 3 telas. Sem cartão de crédito.`
+                  : 'Cadastro só por convite. Se você recebeu um convite, crie a conta com o e-mail convidado.'}
+              </div>
               <Input label="Seu nome" value={f.name} onChange={set('name')} required autoComplete="name" />
-              <Input label="Nome da empresa" value={f.companyName} onChange={set('companyName')} help="Se você recebeu um convite, a conta entra na empresa que convidou." />
+              {signupOpen && <Input label="Nome da empresa" value={f.companyName} onChange={set('companyName')} help="Se você recebeu um convite, a conta entra na empresa que convidou." />}
+              {signupOpen && (
+                <div className="vx-form-row">
+                  <Input label="WhatsApp" value={f.phone} onChange={set('phone')} autoComplete="tel" placeholder="(81) 99999-0000" />
+                  <Input label="Cidade" value={f.city} onChange={set('city')} autoComplete="address-level2" />
+                </div>
+              )}
             </>
           )}
           <Input label="E-mail" type="email" value={f.email} onChange={set('email')} required={!isDemo} autoComplete="email" />
-          <Input label="Senha" type="password" value={f.password} onChange={set('password')} required={!isDemo} minLength={isDemo ? 0 : 6} autoComplete={tab === 'in' ? 'current-password' : 'new-password'} />
+          <Input label="Senha" type="password" value={f.password} onChange={set('password')} required={!isDemo} minLength={isDemo || tab === 'in' ? 0 : 8} autoComplete={tab === 'in' ? 'current-password' : 'new-password'} help={tab === 'up' ? 'Pelo menos 8 caracteres.' : undefined} />
+          {tab === 'up' && <p className="vx-help">Ao criar a conta, você concorda com os <a href={`${siteBase()}termos.html`} target="_blank" rel="noreferrer">termos de uso</a> e a <a href={`${siteBase()}privacidade.html`} target="_blank" rel="noreferrer">política de privacidade</a>.</p>}
           {error && <div className="vx-alert vx-alert-offline"><Icon name="alert" />{error}</div>}
           {info && <div className="vx-alert vx-alert-online"><Icon name="check" />{info}</div>}
           <Button type="submit" variant="primary" loading={busy} className="vx-btn-block">{tab === 'in' ? 'Entrar' : 'Criar conta'}</Button>
@@ -82,4 +104,10 @@ export function Login() {
       </main>
     </div>
   );
+}
+
+/** Endereço do site comercial (termos e privacidade). No Hosting o painel fica em /app/ e o site na raiz. */
+function siteBase() {
+  if (typeof location !== 'undefined' && /^https?:/.test(location.protocol) && location.pathname.startsWith('/app')) return '/';
+  return import.meta.env.VITE_SITE_URL || 'https://vertice.vettasistemas.com.br/';
 }

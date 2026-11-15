@@ -8,11 +8,11 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   doc, collection, onSnapshot, getDoc, getDocs, setDoc, updateDoc, addDoc, deleteDoc,
   query, where, orderBy, limit, writeBatch, runTransaction, serverTimestamp, increment,
-  Timestamp, deleteField, connectFirestoreEmulator,
+  Timestamp, deleteField, connectFirestoreEmulator, collectionGroup,
 } from 'firebase/firestore';
 import { connectStorageEmulator, getStorage, ref as sref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
-  PAIRING_KIND, ORDER_BOARD_DEFAULTS, PLANS, screenCode, normalizePairingCode,
+  PAIRING_KIND, ORDER_BOARD_DEFAULTS, PLANS, screenCode, normalizePairingCode, DEFAULT_TRIAL_DAYS, licenseState,
 } from '@vertice/shared';
 
 const NOW = Symbol('now');
@@ -113,8 +113,16 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
       signIn: (email, password) => signInWithEmailAndPassword(auth, email, password),
       signOut: () => signOut(auth),
       resetPassword: (email) => sendPasswordResetEmail(auth, email),
-      /** Cria o usuário e, se não houver convite, a empresa dele (como proprietário). */
-      async signUp({ name, email, password, companyName }) {
+      /** Configurações públicas da plataforma (cadastro aberto, dias de teste). */
+      async platformSettings() {
+        try { return snapDoc(await getDoc(doc(db, 'platform', 'settings'))) || {}; } catch { return {}; }
+      },
+      /**
+       * Cria o usuário. Com convite, entra na empresa do convite; sem convite, cria a própria empresa
+       * em teste grátis (se o cadastro aberto estiver ligado pela Vetta).
+       */
+      async signUp({ name, email, password, companyName, phone, city }) {
+        const settings = await this.platformSettings();
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
         await updateProfile(cred.user, { displayName: name });
@@ -129,15 +137,27 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
           batch.set(doc(db, 'users', uid), { companyId, name, email: emailKey });
           batch.delete(doc(db, 'invites', emailKey));
         } else {
+          if (settings.signupOpen === false) {
+            await cred.user.delete().catch(() => {});
+            throw new Error('O cadastro está fechado no momento. Fale com a Vetta Sistemas para contratar o Vértice.');
+          }
+          const days = Number(settings.trialDays) || DEFAULT_TRIAL_DAYS;
           const cRef = doc(collection(db, 'companies'));
           batch.set(cRef, {
             name: companyName || `Empresa de ${name}`,
             ownerUid: uid,
+            ownerEmail: emailKey,
             plan: 'start',
             screenLimit: PLANS.start.screens,
             storageQuotaMB: PLANS.start.storageMB,
             storageUsedBytes: 0,
             screenSeq: 0,
+            screenCount: 0,
+            status: 'trial',
+            trialEndsAt: Timestamp.fromMillis(Date.now() + days * 86400000 - 60000),
+            source: 'cadastro',
+            ...(phone ? { phone } : {}),
+            ...(city ? { city } : {}),
             createdAt: serverTimestamp(),
           });
           batch.set(doc(db, 'companies', cRef.id, 'members', uid), {
@@ -147,6 +167,26 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
         }
         await batch.commit();
       },
+      /** Conta que já existe e recebeu um convite (ex.: dono de um cliente criado pela Vetta). */
+      async acceptInvite() {
+        const u = auth.currentUser;
+        if (!u?.email) throw new Error('Faça login de novo.');
+        const emailKey = u.email.toLowerCase();
+        const invite = await getDoc(doc(db, 'invites', emailKey));
+        if (!invite.exists()) return false;
+        const { companyId, role } = invite.data();
+        const batch = writeBatch(db);
+        batch.set(doc(db, 'companies', companyId, 'members', u.uid), { role, name: u.displayName || emailKey, email: emailKey, joinedAt: serverTimestamp(), inviteEmail: emailKey });
+        batch.set(doc(db, 'users', u.uid), { companyId, name: u.displayName || emailKey, email: emailKey });
+        batch.delete(doc(db, 'invites', emailKey));
+        await batch.commit();
+        return true;
+      },
+    },
+
+    /** Consulta de grupo (console da Vetta: todas as telas de todas as empresas). */
+    watchGroup(name, cb, onErr) {
+      return onSnapshot(collectionGroup(db, name), (s) => cb(s.docs.map((d) => ({ ...snapDoc(d), path: d.ref.path }))), (e) => (onErr ? onErr(e) : console.error(name, e)));
     },
 
     watchDoc(path, cb, onErr) {
@@ -212,7 +252,12 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
         const company = cSnap.data();
         let targetId;
         if (kind === PAIRING_KIND.SCREEN) {
-          const used = (await getDocs(collection(db, 'companies', companyId, 'screens'))).size;
+          const lic = licenseState(company);
+          if (lic.blocked) throw new Error(`${lic.title}. Para parear telas novas, regularize a assinatura com a Vetta Sistemas.`);
+          // O contador (screenCount) é o que as regras conferem; contas antigas sem ele usam a contagem real.
+          const used = Number.isFinite(company.screenCount)
+            ? company.screenCount
+            : (await getDocs(collection(db, 'companies', companyId, 'screens'))).size;
           if (company.screenLimit && used >= company.screenLimit) {
             throw new Error(`Seu plano permite ${company.screenLimit} telas. Fale com a Vetta para ampliar.`);
           }
@@ -232,7 +277,7 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
             pairedAt: serverTimestamp(),
             lastSeen: null,
           });
-          tx.update(cRef, { screenSeq: seq });
+          tx.update(cRef, { screenSeq: seq, screenCount: (company.screenCount || 0) + 1, screenOp: targetId });
         } else {
           targetId = p.uid;
           tx.set(doc(db, 'companies', companyId, 'integrations', p.uid), {

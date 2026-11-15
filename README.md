@@ -6,11 +6,15 @@ Digital signage da Vetta Sistemas: mídias, ofertas e pedidos prontos nas TVs da
 vertice/
 ├─ apps/panel/          Painel de gestão (React + Vite). Web no Firebase Hosting e desktop no Electron.
 ├─ apps/player/         Player da TV (React + Vite + Capacitor). APK Android e player web em /tv.
+├─ apps/site/           Site comercial (raiz do domínio), termos de uso e privacidade.
 ├─ packages/shared/     Regras de negócio, tokens do design system, fontes e logos (usado pelos dois apps).
 ├─ integrations/gerenciaai/  Módulo para o GerenciaAI enviar pedidos às TVs.
 ├─ firebase/            Regras do Firestore e do Storage, índices e testes das regras.
+├─ servers/media/       Servidor de mídias próprio (upload do painel, download das TVs, cota do plano).
+├─ servers/worker/      Serviço de alertas e cobrança (TV parada, vencimento, resumo diário para a Vetta).
 ├─ e2e/                 Teste ponta a ponta (emuladores + Playwright).
-└─ docs/ARQUITETURA.md  Como as peças conversam.
+├─ docs/ARQUITETURA.md  Como as peças conversam.
+└─ docs/COMERCIAL.md    Clientes, planos, cobrança, alertas e o que fazer para colocar no ar.
 ```
 
 ## Começar
@@ -107,6 +111,8 @@ O painel instalado no Windows também se atualiza: baixa a versão nova sozinho 
 **Reiniciar e atualizar** (rodapé do menu, onde também fica **Procurar atualização**) ou quando fecha o painel.
 Player e painel saem juntos, com o mesmo número de versão (secret `PAINEL_ENV` = conteúdo do `apps/panel/.env`).
 
-## Planos
+## Planos, clientes e cobrança
 
-Contas novas nascem no plano **Start** (3 telas, 2 GB). Plano, limite de telas e cota só mudam pela Vetta, direto no Firestore (`companies/{id}`: `plan`, `screenLimit`, `storageQuotaMB`). As regras impedem o cliente de mudar esses campos.
+Veja **docs/COMERCIAL.md**. Resumo: a Vetta administra os clientes pelo **console** (menu *Clientes*, visível só para
+quem está em `platformAdmins`), o cadastro aberto dá um teste grátis no Start, e a licença (teste, pago até,
+tolerância, suspensão) é conferida pelas regras do Firestore: bloqueada, a TV pausa e o painel não publica.

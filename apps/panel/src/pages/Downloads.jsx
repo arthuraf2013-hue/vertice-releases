@@ -121,7 +121,9 @@ export function Downloads() {
           <ol className="vx-steps">
             <li>Na TV Box, abra o navegador e baixe o APK (ou copie para um pendrive).</li>
             <li>Permita "fontes desconhecidas" e instale o <b>Vértice Player</b>.</li>
-            <li>Abra o app: ele mostra o código de pareamento. O player inicia sozinho quando a TV liga.</li>
+            <li>Abra o app: ele mostra o código de pareamento. Digite o código em <b>Telas › Parear tela</b>.</li>
+            <li>Aperte <b>Home</b> no controle e escolha <b>Vértice Player</b> como tela inicial, <b>Sempre</b>. Assim a TV Box liga direto no player e volta para ele se alguém sair.</li>
+            <li>No menu do operador (botão OK segurado), confira <b>Permitir abrir sozinho ao ligar</b>. Se o app cair, ele se reabre em 3 segundos.</li>
           </ol>
           <a className="vx-btn vx-btn-primary" href={downloads.android}><Icon name="download" />Baixar APK</a>
           <p className="vx-help">Android 7 ou mais novo. Funciona como launcher em TV Box (tela inicial). Depois de instalado, o player se atualiza sozinho.</p>
@@ -130,7 +132,8 @@ export function Downloads() {
           <ol className="vx-steps">
             <li>No computador ligado à TV, baixe e abra o instalador.</li>
             <li>O player abre em tela cheia e mostra o código de pareamento.</li>
-            <li>Ele abre sozinho quando o Windows liga e se atualiza sozinho.</li>
+            <li>Ele abre sozinho quando o Windows liga e se atualiza sozinho. Se travar, recarrega sozinho.</li>
+            <li>No Windows, ligue o <b>login automático</b> e deixe a suspensão em <b>Nunca</b> (Energia).</li>
           </ol>
           <a className="vx-btn vx-btn-primary" href={downloads.playerWindows}><Icon name="download" />Baixar player para Windows</a>
           <p className="vx-help">Sem mouse na TV? Toque em qualquer tecla para o botão "Menu" aparecer.</p>
@@ -157,7 +160,9 @@ export function Downloads() {
       <Card title="Dicas para a TV não parar" icon="alert" iconTone="neutral">
         <ul className="vx-tips">
           <li><b>Internet:</b> o player baixa as mídias e toca mesmo sem internet. Ele só precisa da rede para receber mudanças.</li>
-          <li><b>Energia:</b> configure a TV para ligar sozinha quando a energia volta (menu da TV › Energia).</li>
+          <li><b>Energia:</b> configure a TV para ligar sozinha quando a energia volta (menu da TV › Energia). A TV Box liga junto e abre o player.</li>
+          <li><b>Madrugada:</b> entre 4h00 e 4h20 o player se recarrega uma vez, para limpar a memória. Leva poucos segundos.</li>
+          <li><b>Alertas:</b> em <b>Empresa › Alertas</b>, cadastre e-mail ou WhatsApp para saber na hora quando uma TV parar.</li>
           <li><b>Vídeos:</b> prefira MP4 H.264 em 1080p. 4K e H.265 travam em TV Box mais simples.</li>
           <li><b>Pedidos:</b> a tela do painel de pedidos precisa de internet para receber o pedido pronto na hora.</li>
         </ul>

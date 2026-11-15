@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './data/api.js';
 import { useDoc, useCol } from './data/hooks.js';
-import { ROLES } from '@vertice/shared';
+import { ROLES, licenseState } from '@vertice/shared';
 
 const Ctx = createContext(null);
 
@@ -15,6 +15,12 @@ export function SessionProvider({ children }) {
   const company = useDoc(companyId ? `companies/${companyId}` : null);
   const member = useDoc(companyId && user ? `companies/${companyId}/members/${user.uid}` : null);
   const units = useCol(companyId ? `companies/${companyId}/units` : null, { orderBy: ['name', 'asc'] });
+  // Console interno: quem tem platformAdmins/{uid} é da Vetta Sistemas.
+  const vettaDoc = useDoc(user ? `platformAdmins/${user.uid}` : null);
+  const settings = useDoc('platform/settings');
+  // Recalcula a licença a cada minuto (o teste e o vencimento passam com o relógio).
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 60_000); return () => clearInterval(t); }, []);
 
   const [unitId, setUnitId] = useState(() => localStorage.getItem('vx-unit') || 'all');
   const [theme, setTheme] = useState(() => localStorage.getItem('vx-theme') || 'light');
@@ -31,11 +37,13 @@ export function SessionProvider({ children }) {
     const can = (min) => ROLES.indexOf(role) >= ROLES.indexOf(min);
     return {
       user, profile, company, companyId, member, role, can, units: units || [],
+      isVetta: !!vettaDoc, settings: settings || {},
+      license: licenseState(company),
       unitId, setUnitId, theme, setTheme,
       base: companyId ? `companies/${companyId}` : null,
-      loading: user === undefined || (user && (profile === undefined || (companyId && company === undefined))),
+      loading: user === undefined || (user && (profile === undefined || vettaDoc === undefined || (companyId && company === undefined))),
     };
-  }, [user, profile, company, companyId, member, units, unitId, theme]);
+  }, [user, profile, company, companyId, member, units, unitId, theme, vettaDoc, settings, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

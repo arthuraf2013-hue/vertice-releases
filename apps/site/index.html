@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vértice: as TVs da sua loja mostrando ofertas, preços e pedidos</title>
+  <meta name="description" content="Digital signage da Vetta Sistemas para o comércio: ofertas, cardápio, tabela de preços e pedido pronto nas TVs da loja. Toca mesmo sem internet. Teste grátis." />
+  <meta property="og:title" content="Vértice, digital signage para o comércio" />
+  <meta property="og:description" content="Ofertas, preços e pedidos prontos nas TVs da sua loja, controlados pelo celular." />
+  <meta name="theme-color" content="#141b26" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script>
+    // Endereços antigos do painel (/#/telas) agora ficam em /app/.
+    if (location.hash.startsWith('#/')) location.replace('/app/' + location.hash);
+  </script>
+</head>
+<body>
+  <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+  <header class="top">
+    <a class="brand" href="/" aria-label="Vértice, início"><img src="/favicon.svg" alt="" width="34" height="34" /><span>Vért<span class="i">ı</span>ce</span></a>
+    <nav class="nav" aria-label="Seções">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#recursos">Recursos</a>
+      <a href="#planos">Planos</a>
+      <a href="#duvidas">Dúvidas</a>
+    </nav>
+    <div class="top-actions">
+      <a class="btn ghost" href="/app/">Entrar</a>
+      <a class="btn gold" href="/app/#/?criar">Testar grátis</a>
+    </div>
+  </header>
+
+  <main id="conteudo">
+    <section class="hero">
+      <div class="hero-text">
+        <h1>As TVs da sua loja vendendo o dia inteiro.</h1>
+        <p class="lede">O Vértice mostra ofertas, cardápio, tabela de preços e o pedido pronto nas TVs do seu comércio. Você muda tudo pelo celular ou pelo computador, e a TV continua tocando mesmo quando a internet cai.</p>
+        <div class="cta-row">
+          <a class="btn gold lg" href="/app/#/?criar"><span>Testar grátis por <span data-trial>14</span> dias</span></a>
+          <a class="btn outline lg" data-whatsapp href="#planos">Falar com a Vetta</a>
+        </div>
+        <p class="fine">Sem cartão de crédito. Funciona em TV box Android, Smart TV Android e computador com Windows.</p>
+      </div>
+
+      <figure class="tv-wrap" aria-label="Exemplo do que aparece na TV da loja">
+        <div class="tv" id="tv">
+          <div class="scene is-on" data-scene="oferta">
+            <div class="offer">
+              <span class="offer-tag">Oferta de hoje</span>
+              <b class="offer-name">Pão francês</b>
+              <span class="offer-price"><small>R$</small>14<small>,90</small><em>/kg</em></span>
+              <span class="offer-foot">Saindo quentinho a cada 40 minutos</span>
+            </div>
+            <div class="offer-art" aria-hidden="true"><i></i><i></i><i></i></div>
+          </div>
+          <div class="scene" data-scene="pedido">
+            <div class="ready">
+              <span class="ready-label">Pedido pronto</span>
+              <b class="ready-num">127</b>
+              <span class="ready-name">Mariana, retire no balcão</span>
+              <ul class="ready-list" aria-label="Também prontos"><li>124</li><li>125</li><li>126</li></ul>
+            </div>
+          </div>
+          <div class="scene" data-scene="precos">
+            <table class="prices">
+              <caption>Frios e laticínios</caption>
+              <tbody>
+                <tr><td>Queijo coalho</td><td>R$ 49,90<small>/kg</small></td></tr>
+                <tr><td>Presunto cozido</td><td>R$ 32,90<small>/kg</small></td></tr>
+                <tr><td>Mortadela Bologna</td><td>R$ 19,90<small>/kg</small></td></tr>
+                <tr><td>Manteiga 200 g</td><td>R$ 12,50</td></tr>
+                <tr><td>Iogurte natural 170 g</td><td>R$ 3,99</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tv-bar"><span data-clock>08:30</span><span>29 °C, Recife</span><span class="tv-dot" aria-hidden="true"></span></div>
+        </div>
+        <div class="tv-stand" aria-hidden="true"></div>
+        <figcaption>
+          <button type="button" data-go="oferta" class="is-on">Ofertas</button>
+          <button type="button" data-go="pedido">Pedido pronto</button>
+          <button type="button" data-go="precos">Tabela de preços</button>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section class="band light" id="como-funciona">
+      <div class="in">
+        <h2>Uma TV nova no ar em poucos minutos.</h2>
+        <ol class="steps">
+          <li><h3>Ligue o player na TV</h3><p>Instale o Vértice Player na TV box ou no computador da loja. Ele mostra um código de seis letras.</p></li>
+          <li><h3>Digite o código no painel</h3><p>Pelo celular ou computador, em Telas, digite o código. A TV fica ligada à sua conta.</p></li>
+          <li><h3>Monte a programação</h3><p>Envie fotos e vídeos, crie peças no Estúdio e escolha o que passa em cada horário e em cada TV.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="band light" id="recursos">
+      <div class="in">
+        <h2>Tudo o que uma loja precisa mostrar.</h2>
+        <div class="feature-grid">
+          <article><h3>Fotos, vídeos e playlists</h3><p>Monte sequências com tempo para cada mídia e programe por dia da semana e horário: café da manhã de manhã, almoço ao meio-dia.</p></article>
+          <article><h3>Estúdio de peças</h3><p>Ofertas, cardápio, avisos e boas-vindas com a cara da sua marca, sem precisar de designer. Muda o preço e a TV atualiza.</p></article>
+          <article><h3>Tabela de preços</h3><p>Importe a lista de uma planilha ou receba direto do GerenciaAI. A TV mostra os preços sempre atualizados.</p></article>
+          <article><h3>Pedido pronto na TV</h3><p>Ligado ao GerenciaAI, o número e o nome do cliente aparecem na tela quando o pedido fica pronto.</p></article>
+          <article><h3>Relógio, clima, notícias e QR Code</h3><p>Aplicativos prontos para encaixar na playlist, inclusive QR Code de Pix e de Wi-Fi gerado na própria TV.</p></article>
+          <article><h3>Video wall</h3><p>Junte até 16 TVs numa imagem só, com as telas sincronizadas pelo relógio do servidor.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="band dark">
+      <div class="in split">
+        <div>
+          <h2>Feito para ficar ligado meses sem ninguém mexer.</h2>
+          <p class="lede">A TV de uma loja não pode depender de alguém lembrar de apertar um botão. O Vértice foi pensado para o balcão real.</p>
+        </div>
+        <ul class="checks">
+          <li><b>Toca sem internet.</b> As mídias ficam guardadas na TV box. A internet só serve para receber mudanças.</li>
+          <li><b>Liga sozinho.</b> Faltou energia, a TV volta direto no Vértice. Se o app travar, ele se reabre.</li>
+          <li><b>Avisa quando para.</b> Uma TV ficou sem responder? Você recebe por e-mail ou WhatsApp.</li>
+          <li><b>Mostra o que está na tela.</b> Tire uma foto da TV pelo painel, de qualquer lugar.</li>
+          <li><b>Se atualiza sozinho.</b> As versões novas do player chegam sem visita técnica.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="band light">
+      <div class="in split">
+        <div>
+          <h2>Venda espaço nas suas telas.</h2>
+          <p class="lede">Cadastre anunciantes, ligue as mídias a cada contrato e entregue um relatório de comprovação com quantas vezes e por quanto tempo cada anúncio passou, em cada TV.</p>
+        </div>
+        <div class="proof" aria-label="Exemplo de relatório de comprovação">
+          <div class="proof-head"><b>Ótica Visão</b><span>1 a 31 de outubro</span></div>
+          <dl>
+            <div><dt>Exibições</dt><dd>8.412</dd></div>
+            <div><dt>Tempo na tela</dt><dd>23 h 22 min</dd></div>
+            <div><dt>Telas</dt><dd>6</dd></div>
+          </dl>
+          <p>Exemplo ilustrativo do relatório.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="band light" id="planos">
+      <div class="in">
+        <h2>Planos pelo número de TVs.</h2>
+        <p class="lede">Todos os recursos em todos os planos. O que muda é quantas telas você conecta e quanto espaço tem para mídias.</p>
+        <div class="plans">
+          <article><h3>Start</h3><p class="plan-size">Até 3 telas</p><p>2 GB para mídias</p><p class="plan-for">Padaria, lanchonete, loja de bairro.</p></article>
+          <article class="is-mid"><h3>Pro</h3><p class="plan-size">Até 15 telas</p><p>10 GB para mídias</p><p class="plan-for">Mercado, farmácia, restaurante com várias TVs.</p></article>
+          <article><h3>Rede</h3><p class="plan-size">Até 100 telas</p><p>50 GB para mídias</p><p class="plan-for">Redes com várias unidades e video wall.</p></article>
+        </div>
+        <div class="plans-cta">
+          <a class="btn gold lg" href="/app/#/?criar">Começar o teste grátis</a>
+          <a class="btn outline-dark lg" data-whatsapp href="#duvidas">Pedir uma proposta</a>
+        </div>
+        <p class="fine dark">O teste grátis começa no Start. Para mudar de plano, fale com a Vetta Sistemas.</p>
+      </div>
+    </section>
+
+    <section class="band light" id="duvidas">
+      <div class="in narrow">
+        <h2>Dúvidas comuns</h2>
+        <details><summary>Que TV eu preciso?</summary><p>Qualquer TV com entrada HDMI e uma TV box Android, ou uma Smart TV com Android TV. Também funciona num computador com Windows ligado à TV.</p></details>
+        <details><summary>A TV para se a internet cair?</summary><p>Não. O player baixa as mídias e continua tocando a programação guardada. Quando a internet volta, ele recebe as mudanças.</p></details>
+        <details><summary>Preciso deixar um computador ligado?</summary><p>Não. Basta a TV box ligada na TV. O painel funciona no navegador do celular ou do computador, de onde você estiver.</p></details>
+        <details><summary>O teste grátis tem algum custo?</summary><p>Não, e não pedimos cartão. Ao final, as telas pausam até você contratar um plano. Nada do que você montou é apagado.</p></details>
+        <details><summary>Já uso o GerenciaAI. Conecta?</summary><p>Sim. O caixa do GerenciaAI se conecta ao Vértice por código e manda o pedido pronto e a tabela de preços para as TVs.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="in foot-in">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28" /><span>Vért<span class="i">ı</span>ce</span></a>
+      <p>Um produto da Vetta Sistemas, Recife, PE.</p>
+      <nav aria-label="Rodapé"><a href="/termos.html">Termos de uso</a><a href="/privacidade.html">Privacidade</a><a href="/app/">Entrar no painel</a></nav>
+    </div>
+  </footer>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

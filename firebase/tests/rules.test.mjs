@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import {
   doc, setDoc, getDoc, updateDoc, deleteDoc, writeBatch, collection, getDocs, query, where,
-  serverTimestamp, Timestamp, runTransaction,
+  serverTimestamp, Timestamp, runTransaction, collectionGroup,
 } from 'firebase/firestore';
 
 let env;
@@ -40,10 +40,11 @@ async function seedCompany() {
 async function claim(db, code, kind, extra = {}) {
   return runTransaction(db, async (tx) => {
     const p = (await tx.get(doc(db, 'pairings', code))).data();
-    const targetId = kind === 'screen' ? 'scr1' : p.uid;
+    const targetId = kind === 'screen' ? (extra.screenId || 'scr1') : p.uid;
     if (kind === 'screen') {
+      const c = (await tx.get(doc(db, 'companies', CID))).data();
       tx.set(doc(db, `companies/${CID}/screens/${targetId}`), { code: 'VTX-0001', name: 'TV', deviceUid: p.uid, groupIds: [] });
-      tx.update(doc(db, 'companies', CID), { screenSeq: 1 });
+      tx.update(doc(db, 'companies', CID), { screenSeq: (c.screenSeq || 0) + 1, screenCount: (c.screenCount || 0) + 1, screenOp: targetId });
     } else {
       tx.set(doc(db, `companies/${CID}/integrations/${targetId}`), { name: 'GerenciaAI', deviceUid: p.uid, unitId: extra.unitId ?? null });
     }
@@ -51,6 +52,11 @@ async function claim(db, code, kind, extra = {}) {
     tx.update(doc(db, 'pairings', code), { claimed: true, companyId: CID, targetId, companyName: 'Acme', claimedAt: serverTimestamp() });
   });
 }
+const DAY = 24 * 60 * MIN;
+const trialCompany = (ownerUid, days = 14) => ({
+  name: 'Loja', ownerUid, plan: 'start', screenLimit: 3, storageQuotaMB: 2048, storageUsedBytes: 0, screenSeq: 0, screenCount: 0,
+  status: 'trial', trialEndsAt: Timestamp.fromMillis(Date.now() + days * DAY), createdAt: serverTimestamp(),
+});
 const pairingDoc = (uid, code, kind = 'screen', ttl = 30 * MIN) => ({
   code, kind, uid, claimed: false, appVersion: '0.1.0', createdAt: serverTimestamp(), expiresAt: Timestamp.fromMillis(Date.now() + ttl),
 });
@@ -58,14 +64,14 @@ const pairingDoc = (uid, code, kind = 'screen', ttl = 30 * MIN) => ({
 test('conta nova cria empresa no plano Start e não consegue se dar plano maior', async () => {
   const db = as('u1', { email: 'Ana@Loja.com' });
   const ok = writeBatch(db);
-  ok.set(doc(db, 'companies', 'c1'), { name: 'Loja', ownerUid: 'u1', plan: 'start', screenLimit: 3, storageQuotaMB: 2048, storageUsedBytes: 0, screenSeq: 0 });
+  ok.set(doc(db, 'companies', 'c1'), trialCompany('u1'));
   ok.set(doc(db, 'companies/c1/members/u1'), { role: 'owner', name: 'Ana' });
   ok.set(doc(db, 'users/u1'), { companyId: 'c1' });
   await assertSucceeds(ok.commit());
 
   const db2 = as('u2');
   const bad = writeBatch(db2);
-  bad.set(doc(db2, 'companies', 'c2'), { name: 'X', ownerUid: 'u2', plan: 'rede', screenLimit: 100, storageQuotaMB: 51200, storageUsedBytes: 0, screenSeq: 0 });
+  bad.set(doc(db2, 'companies', 'c2'), { ...trialCompany('u2'), plan: 'rede', screenLimit: 100, storageQuotaMB: 51200 });
   await assertFails(bad.commit());
   // Ninguém se pendura numa empresa alheia.
   await assertFails(setDoc(doc(as('u3'), 'users/u3'), { companyId: 'c1' }));
@@ -241,4 +247,114 @@ test('anunciantes e video walls: editor grava; leitor só lê; de fora não vê'
     await assertSucceeds(getDoc(d(as('viewer'))));
     await assertFails(getDoc(d(as('x'))));
   }
+});
+
+/* ---------- Comercial: licença, limite de telas e console da Vetta ---------- */
+
+async function setCompany(data) {
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'companies', CID), data));
+}
+async function pairScreen(code, tvUid, screenId) {
+  await setDoc(doc(as(tvUid), `pairings/${code}`), pairingDoc(tvUid, code));
+  return claim(as('owner'), code, 'screen', { screenId });
+}
+
+test('cadastro aberto: teste grátis com prazo da configuração; fechado pela Vetta, não cria', async () => {
+  const mk = (uid, data) => {
+    const db = as(uid, { email: `${uid}@loja.com` });
+    const b = writeBatch(db);
+    b.set(doc(db, 'companies', `c-${uid}`), data);
+    b.set(doc(db, `companies/c-${uid}/members/${uid}`), { role: 'owner' });
+    b.set(doc(db, `users/${uid}`), { companyId: `c-${uid}` });
+    return b.commit();
+  };
+  await assertFails(mk('a1', { ...trialCompany('a1', 60) }));                       // teste longo demais
+  await assertFails(mk('a2', { ...trialCompany('a2'), status: 'active' }));         // sem teste = de graça
+  await assertFails(mk('a3', { ...trialCompany('a3'), paidUntil: Timestamp.fromMillis(Date.now() + 365 * DAY) }));
+  await assertSucceeds(mk('a4', trialCompany('a4')));
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'platform/settings'), { signupOpen: false, trialDays: 7 }));
+  await assertFails(mk('a5', trialCompany('a5', 7)));
+  // Qualquer um lê as configurações públicas; só a Vetta muda.
+  await assertSucceeds(getDoc(doc(anon(), 'platform/settings')));
+  await assertFails(setDoc(doc(as('a4'), 'platform/settings'), { signupOpen: true }));
+});
+
+test('limite de telas: conferido no servidor, contador anda junto com a tela', async () => {
+  await seedCompany();
+  await setCompany({ screenLimit: 2, screenCount: 0 });
+  await assertSucceeds(pairScreen('AA2AA2', 'tv-1', 's1'));
+  await assertSucceeds(pairScreen('BB2BB2', 'tv-2', 's2'));
+  await assertFails(pairScreen('CC2CC2', 'tv-3', 's3'));
+  // Tela criada sem mexer no contador, ou contador baixado à toa: recusado.
+  await assertFails(setDoc(doc(as('owner'), `companies/${CID}/screens/s9`), { name: 'X' }));
+  await assertFails(updateDoc(doc(as('owner'), 'companies', CID), { screenCount: 0, screenOp: 's1' }));
+  // Excluir a tela libera a vaga.
+  const db = as('owner');
+  const b = writeBatch(db);
+  b.delete(doc(db, `companies/${CID}/screens/s1`));
+  b.update(doc(db, 'companies', CID), { screenCount: 1, screenOp: 's1' });
+  await assertSucceeds(b.commit());
+  await assertSucceeds(pairScreen('DD2DD2', 'tv-4', 's4'));
+});
+
+test('licença: vencida, fim do teste ou suspensa param a TV e a publicação', async () => {
+  await seedCompany();
+  await pairScreen('AB2CD3', 'tv-1', 'scr1');
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `companies/${CID}/manifests/scr1`), { slots: [] }));
+  const tv = as('tv-1');
+  const read = () => getDoc(doc(tv, `companies/${CID}/manifests/scr1`));
+  const publish = () => setDoc(doc(as('editor'), `companies/${CID}/manifests/scr1`), { slots: [] });
+
+  await setCompany({ status: 'active', paidUntil: Timestamp.fromMillis(Date.now() + 10 * DAY) });
+  await assertSucceeds(read()); await assertSucceeds(publish());
+  await setCompany({ paidUntil: Timestamp.fromMillis(Date.now() - 2 * DAY) });        // vencida, ainda na tolerância
+  await assertSucceeds(read());
+  await setCompany({ paidUntil: Timestamp.fromMillis(Date.now() - 6 * DAY) });        // passou da tolerância
+  await assertFails(read()); await assertFails(publish());
+  await assertSucceeds(getDoc(doc(as('viewer'), `companies/${CID}/manifests/scr1`)));  // o painel ainda vê
+  await setCompany({ graceDays: 10 });
+  await assertSucceeds(read());
+  await setCompany({ status: 'trial', trialEndsAt: Timestamp.fromMillis(Date.now() - MIN) });
+  await assertFails(read());
+  await setCompany({ status: 'suspended', paidUntil: Timestamp.fromMillis(Date.now() + 30 * DAY) });
+  await assertFails(read()); await assertFails(publish());
+  // Bloqueada também não pareia tela nova.
+  await assertFails(pairScreen('XY2XY3', 'tv-2', 's2'));
+});
+
+test('console da Vetta: vê e administra clientes; cliente não se promove', async () => {
+  await seedCompany();
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'platformAdmins/vetta'), { name: 'Arthur' }));
+  const v = as('vetta', { email: 'arthur@vetta.com' });
+  await assertSucceeds(getDocs(collection(v, 'companies')));
+  await assertFails(getDocs(collection(as('owner'), 'companies')));
+  await assertSucceeds(getDocs(collection(v, `companies/${CID}/members`)));
+  await assertSucceeds(updateDoc(doc(v, 'companies', CID), { plan: 'pro', screenLimit: 15, status: 'active', paidUntil: Timestamp.fromMillis(Date.now() + 30 * DAY) }));
+  await assertSucceeds(setDoc(doc(v, `companies/${CID}/payments/p1`), { amount: 99.9, paidAt: serverTimestamp() }));
+  await assertSucceeds(getDocs(collection(as('owner'), `companies/${CID}/payments`)));
+  await assertFails(getDocs(collection(as('editor'), `companies/${CID}/payments`)));
+  await assertFails(setDoc(doc(as('owner'), `companies/${CID}/payments/p2`), { amount: 1 }));
+  await assertFails(updateDoc(doc(as('owner'), 'companies', CID), { status: 'active', paidUntil: Timestamp.fromMillis(Date.now() + 999 * DAY) }));
+  await assertFails(setDoc(doc(as('owner'), 'platformAdmins/owner'), { name: 'eu' }));
+  // Cliente novo criado pela Vetta, com convite para o dono.
+  await assertSucceeds(setDoc(doc(v, 'companies/novo'), { name: 'Mercado Bom Preço', plan: 'pro', screenLimit: 15, status: 'active' }));
+  await assertSucceeds(setDoc(doc(v, 'invites/dono@bompreco.com'), { companyId: 'novo', role: 'owner' }));
+  await assertFails(setDoc(doc(as('owner'), 'invites/outro@x.com'), { companyId: CID, role: 'owner' }));
+  const dono = as('dono', { email: 'dono@bompreco.com' });
+  const b = writeBatch(dono);
+  b.set(doc(dono, 'companies/novo/members/dono'), { role: 'owner' });
+  b.set(doc(dono, 'users/dono'), { companyId: 'novo' });
+  b.delete(doc(dono, 'invites/dono@bompreco.com'));
+  await assertSucceeds(b.commit());
+  // Situação de todas as telas, só para a Vetta.
+  await assertSucceeds(getDocs(query(collectionGroup(v, 'screens'))));
+  await assertFails(getDocs(query(collectionGroup(as('owner'), 'screens'))));
+});
+
+test('alertas: admin configura e pede teste; editor não', async () => {
+  await seedCompany();
+  await assertSucceeds(updateDoc(doc(as('owner'), 'companies', CID), { alerts: { enabled: true, emails: ['a@b.com'], offlineMinutes: 15 } }));
+  await assertFails(updateDoc(doc(as('editor'), 'companies', CID), { alerts: { enabled: false } }));
+  await assertSucceeds(setDoc(doc(as('owner'), `companies/${CID}/alertTests/t1`), { at: serverTimestamp(), by: 'owner' }));
+  await assertFails(setDoc(doc(as('editor'), `companies/${CID}/alertTests/t2`), { at: serverTimestamp(), by: 'editor' }));
 });

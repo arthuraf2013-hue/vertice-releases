@@ -7,11 +7,12 @@ import { Playback } from './ui/Playback.jsx';
 import { OrderOverlay, OrderSidebar, OrderBoard, useReadyAnnouncer, chaveDoPronto } from './ui/Orders.jsx';
 import { OperatorMenu } from './ui/OperatorMenu.jsx';
 import { WindowBar } from './ui/WindowBar.jsx';
-import { can } from './services/host.js';
+import { can, host } from './services/host.js';
 import { createUpdater } from './services/updater.js';
 import { startRemote } from './services/remote.js';
 import { createStats } from './services/stats.js';
 import { WallPlayback } from './ui/WallPlayback.jsx';
+import { startWatchdog } from './services/watchdog.js';
 import { demoState, demoReady } from './demo.js';
 
 export function App() {
@@ -52,6 +53,8 @@ function Live() {
     });
     // Relatórios: exibições por mídia, somadas no aparelho e enviadas a cada 5 min.
     const stats = createStats(d);
+    // Vigia: recarga diária de madrugada e recuperação de memória/erros (não recarrega no meio do pareamento).
+    startWatchdog({ reload: () => host.reload(), isBusy: () => d.getState().phase === 'pairing' });
     setSvc({ updater, remote, stats });
   }, []);
   if (!state) return null;
@@ -72,6 +75,7 @@ function Screen({ state, device, updater, remote, stats, signals }) {
   if (phase === 'boot') body = <SystemScreen variant="boot" network={network} />;
   else if (phase === 'error' && !manifest) body = <SystemScreen variant="offline" network={network} />;
   else if (phase === 'pairing') body = <SystemScreen variant="pairing" code={state.code} codeExpiresAt={state.codeExpiresAt} network={network} />;
+  else if (state.licenseBlocked) body = <SystemScreen variant="blocked" network={network} screenCode={manifest?.screen?.code} companyName={manifest?.company?.name} />;
   else if (!manifest) body = <SystemScreen variant={network?.online === false ? 'offline' : 'boot'} network={network} />;
   else if (config.mode === 'full') {
     body = <OrderBoard board={board} config={config} latestId={latestId} companyName={manifest.company?.name} />;

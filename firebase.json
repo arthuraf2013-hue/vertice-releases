@@ -23,7 +23,7 @@
         ]
       },
       {
-        "source": "**/index.html",
+        "source": "**/*.html",
         "headers": [
           {
             "key": "Cache-Control",
@@ -31,7 +31,8 @@
           }
         ]
       }
-    ]
+    ],
+    "cleanUrls": true
   },
   "emulators": {
     "firestore": {

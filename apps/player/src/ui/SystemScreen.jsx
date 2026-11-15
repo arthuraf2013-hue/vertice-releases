@@ -11,6 +11,7 @@ export function SystemScreen({ variant, code, codeExpiresAt, network, screenCode
     empty: { over: companyName ? companyName.toUpperCase() : 'SEM PROGRAMAÇÃO', title: 'Nada programado para agora', help: <>Publique uma grade para esta tela em <b>Programação</b>, no painel.</> },
     offline: { over: 'SEM INTERNET', title: 'Aguardando conexão', help: 'Confira o cabo ou o Wi-Fi da TV. Tentamos de novo sozinhos.' },
     syncing: { over: 'BAIXANDO CONTEÚDO', title: 'Preparando as mídias', help: 'A primeira vez leva alguns minutos. Depois a tela toca mesmo sem internet.' },
+    blocked: { over: companyName ? companyName.toUpperCase() : 'TELA PAUSADA', title: 'Exibição pausada', help: <>A assinatura do Vértice desta empresa precisa de atenção. O responsável vê os detalhes no painel, em <b>Empresa › Plano</b>. A tela volta sozinha quando estiver tudo certo.</> },
   }[variant];
   const [a, b] = splitPairingCode(code || '');
 

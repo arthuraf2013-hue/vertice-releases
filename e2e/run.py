@@ -5,7 +5,7 @@ Requer: emuladores (auth, firestore), servidor de mídias (servers/media) e os t
   player  → http://localhost:4301   (apps/player/dist-e2e)
   harness → http://localhost:4302   (e2e/harness/dist, simula o GerenciaAI)
 """
-import asyncio, re, base64, os, sys, time
+import asyncio, json, urllib.request, re, base64, os, sys, time
 from playwright.async_api import async_playwright, expect
 
 PANEL, PLAYER, HARNESS = 'http://localhost:4300/', 'http://localhost:4301/', 'http://localhost:4302/'
@@ -23,8 +23,10 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(**({'executable_path': CHROME} if CHROME else {}), args=['--no-sandbox', '--autoplay-policy=no-user-gesture-required'])
         errors = []
+        vxlog = []
         def watch(page, name):
             page.on('pageerror', lambda e: errors.append(f'{name}: {e}'))
+            page.on('console', lambda m: '[vx]' in m.text and vxlog.append(f'{name}: {m.text}'))
 
         # Gera a imagem da oferta com o próprio navegador.
         art = await b.new_page(viewport={'width': 1280, 'height': 720})
@@ -204,6 +206,27 @@ async def main():
         await expect(tv.locator('.vxa-price-val').first).to_contain_text('12,90')
         await tv.screenshot(path=f'{SHOTS}/6-tv-price.png')
         step('tabela do Price entrou na playlist e apareceu na TV')
+
+        # 6b. Licença suspensa → TV pausa; reativada → volta a tocar
+        fs = 'http://127.0.0.1:8080/v1/projects/demo-vertice/databases/(default)/documents'
+        hdr = {'Authorization': 'Bearer owner', 'Content-Type': 'application/json'}
+        def fsreq(method, url, body=None):
+            r = urllib.request.Request(url, method=method, headers=hdr, data=json.dumps(body).encode() if body else None)
+            return json.loads(urllib.request.urlopen(r).read() or b'{}')
+        cid = fsreq('GET', f'{fs}/companies')['documents'][0]['name'].split('/')[-1]
+        fsreq('PATCH', f'{fs}/companies/{cid}?updateMask.fieldPaths=status', {'fields': {'status': {'stringValue': 'suspended'}}})
+        await tv.reload()
+        try:
+            await expect(tv.get_by_role('heading', name='Exibição pausada')).to_be_visible(timeout=60000)
+        except Exception:
+            print('\n'.join(vxlog[-30:])); print(fsreq('GET', f'{fs}/companies/{cid}')['fields'].get('status')); raise
+        await tv.screenshot(path=f'{SHOTS}/6b-tv-pausada.png')
+        await panel.goto(PANEL + '#/')
+        await expect(panel.get_by_text('Assinatura suspensa')).to_be_visible(timeout=15000)
+        fsreq('PATCH', f'{fs}/companies/{cid}?updateMask.fieldPaths=status', {'fields': {'status': {'stringValue': 'trial'}}})
+        await tv.reload()
+        await expect(tv.locator('.vxa-price-title, .tv-media').first).to_be_visible(timeout=60000)
+        step('licença suspensa pausa a TV e o painel avisa; reativada, a TV volta a tocar')
 
         # 7. Desconectar a tela → TV volta ao pareamento
         await panel.goto(PANEL + '#/')

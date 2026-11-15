@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   ROLE_LABEL, ROLES, PLANS, formatBytes, formatDateTime, timeAgo, normalizePairingCode, isValidPairingCode,
-  PAIRING_KIND, boardOrders, formatOrderNumber, STATUS_WARN_MS,
+  PAIRING_KIND, boardOrders, formatOrderNumber, STATUS_WARN_MS, LICENSE_LABEL, formatMoney as fmtMoney,
 } from '@vertice/shared';
 import { useSession } from '../session.jsx';
 import { useCol, useNow, useById } from '../data/hooks.js';
 import { api, supportWhatsApp } from '../data/api.js';
 import {
   PageHeader, Button, Card, Tabs, Table, Input, Select, Loading, EmptyState, Modal, useToast, useConfirm, IconButton,
-  StatusBadge, MetricCard,
+  StatusBadge, MetricCard, Toggle,
 } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
 
@@ -18,12 +18,13 @@ export function Company() {
   const tab = params.get('aba') || 'dados';
   return (
     <div className="vx-page">
-      <PageHeader overline="GESTÃO" title="Empresa" subtitle="Dados da empresa, quem acessa o painel, integrações e o seu plano." />
+      <PageHeader overline="GESTÃO" title="Empresa" subtitle="Dados da empresa, quem acessa o painel, alertas, integrações e o seu plano." />
       <Tabs value={tab} onChange={(aba) => setParams({ aba }, { replace: true })} tabs={[
-        { id: 'dados', label: 'Dados' }, { id: 'usuarios', label: 'Usuários' }, { id: 'integracoes', label: 'Integrações' }, { id: 'licenca', label: 'Plano' },
+        { id: 'dados', label: 'Dados' }, { id: 'usuarios', label: 'Usuários' }, { id: 'alertas', label: 'Alertas' }, { id: 'integracoes', label: 'Integrações' }, { id: 'licenca', label: 'Plano' },
       ]} />
       {tab === 'dados' && <CompanyData />}
       {tab === 'usuarios' && <Users />}
+      {tab === 'alertas' && <Alerts />}
       {tab === 'integracoes' && <Integrations />}
       {tab === 'licenca' && <Plan />}
     </div>
@@ -223,21 +224,46 @@ function Integrations() {
 }
 
 function Plan() {
-  const { company, base } = useSession();
-  const screens = useCol(`${base}/screens`);
+  const { company, base, license, settings, can } = useSession();
+  const payments = useCol(can('admin') ? `${base}/payments` : null, { orderBy: ['paidAt', 'desc'], limit: 12 });
   const plan = PLANS[company.plan] || PLANS.start;
   const quota = (company.storageQuotaMB || plan.storageMB) * 1024 * 1024;
   const used = company.storageUsedBytes || 0;
-  const n = screens?.length || 0;
+  const n = company.screenCount || 0;
   const limit = company.screenLimit || plan.screens;
+  const wa = settings.supportWhatsApp || supportWhatsApp;
+  const due = license.status === 'trial' ? company.trialEndsAt : company.paidUntil;
   return (
     <>
       <div className="vx-grid-3">
-        <MetricCard icon="key" label="Plano" value={plan.name} dot="online" note={`Até ${limit} telas e ${formatBytes(quota)}`} />
+        <MetricCard icon="key" label="Plano" value={plan.name} dot={license.tone} note={`${LICENSE_LABEL[license.status]}${due ? `, ${license.status === 'trial' ? 'termina' : 'pago até'} ${formatDay(due)}` : ''}`} />
         <MetricCard icon="screen" label="Telas" value={n} total={limit} bar={(n / limit) * 100} dot={n >= limit ? 'warn' : 'online'} note={n >= limit ? 'Limite atingido' : `${limit - n} disponíveis`} />
         <MetricCard icon="storage" label="Armazenamento" value={formatBytes(used)} bar={(used / quota) * 100} note={`de ${formatBytes(quota)}`} />
       </div>
-      <Card title="Ampliar o plano" icon="building" iconTone="neutral">
+      {license.warn && (
+        <div className={`vx-callout is-${license.blocked ? 'offline' : 'warn'}`}>
+          <Icon name={license.blocked ? 'alert' : 'clock'} />
+          <div><b>{license.title}</b><p>{license.text}</p></div>
+        </div>
+      )}
+      <Card title="Assinatura" icon="wallet" iconTone="neutral">
+        <dl className="vx-kv">
+          <dt>Situação</dt><dd><StatusBadge status={license.tone}>{LICENSE_LABEL[license.status]}</StatusBadge></dd>
+          {license.status === 'trial' && <><dt>Teste termina</dt><dd>{formatDay(company.trialEndsAt)}</dd></>}
+          {company.paidUntil && <><dt>Pago até</dt><dd>{formatDay(company.paidUntil)}</dd></>}
+          {company.monthlyPrice ? <><dt>Mensalidade</dt><dd>{formatMoney(company.monthlyPrice)}</dd></> : null}
+          <dt>Tolerância</dt><dd>{company.graceDays ?? settings.graceDays ?? 5} dias depois do vencimento</dd>
+        </dl>
+        {payments?.length > 0 && (
+          <Table rows={payments} columns={[
+            { key: 'paidAt', label: 'Pagamento', render: (p) => formatDay(p.paidAt) },
+            { key: 'amount', label: 'Valor', render: (p) => formatMoney(p.amount) },
+            { key: 'method', label: 'Forma' },
+            { key: 'paidUntil', label: 'Cobre até', render: (p) => formatDay(p.paidUntil) },
+          ]} />
+        )}
+      </Card>
+      <Card title="Planos" icon="building" iconTone="neutral">
         <div className="vx-plans">
           {Object.entries(PLANS).map(([id, p]) => (
             <div key={id} className={`vx-plan ${company.plan === id ? 'is-current' : ''}`}>
@@ -248,9 +274,87 @@ function Plan() {
             </div>
           ))}
         </div>
-        <p className="vx-help">Para mudar de plano ou ver o financeiro, fale com a Vetta Sistemas.</p>
-        {supportWhatsApp && (
-          <a className="vx-btn" href={`https://wa.me/${supportWhatsApp}?text=${encodeURIComponent(`Quero ampliar o plano do Vértice (${company.name})`)}`} target="_blank" rel="noreferrer"><Icon name="send" />Falar com a Vetta</a>
+        <p className="vx-help">Para contratar, mudar de plano ou ver o financeiro, fale com a Vetta Sistemas.</p>
+        {wa && (
+          <a className="vx-btn" href={`https://wa.me/${wa}?text=${encodeURIComponent(`Olá! Quero falar sobre o plano do Vértice (${company.name}).`)}`} target="_blank" rel="noreferrer"><Icon name="send" />Falar com a Vetta</a>
+        )}
+      </Card>
+    </>
+  );
+}
+
+const formatMoney = (n) => `R$ ${fmtMoney(n)}`;
+const formatDay = (ms) => (ms ? new Date(ms).toLocaleDateString('pt-BR') : '—');
+
+/** Alertas: e-mail e WhatsApp quando uma TV para de responder. Quem envia é o serviço de alertas (servers/worker). */
+function Alerts() {
+  const { company, base, can, user } = useSession();
+  const toast = useToast();
+  const log = useCol(`${base}/alertLog`, { orderBy: ['at', 'desc'], limit: 15 });
+  const a = company.alerts || {};
+  const [f, setF] = useState(() => ({
+    enabled: a.enabled ?? false,
+    emails: (a.emails || []).join(', '),
+    whatsapps: (a.whatsapps || []).join(', '),
+    offlineMinutes: String(a.offlineMinutes || 15),
+    notifyBack: a.notifyBack ?? true,
+    quietStart: a.quietStart || '',
+    quietEnd: a.quietEnd || '',
+  }));
+  const [busy, setBusy] = useState('');
+  const set = (p) => setF((x) => ({ ...x, ...p }));
+  const list = (t, re) => t.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean).filter((x) => re.test(x));
+  const emails = list(f.emails.toLowerCase(), /^[^@\s]+@[^@\s]+\.[^@\s]+$/);
+  const phones = list(f.whatsapps.replace(/[()\-+ ]/g, (c) => (c === ',' ? c : '')), /^\d{10,15}$/);
+  const save = async () => {
+    setBusy('save');
+    try {
+      await api.update(base, { alerts: {
+        enabled: f.enabled, emails, whatsapps: phones.map((p) => (p.length <= 11 ? `55${p}` : p)),
+        offlineMinutes: Number(f.offlineMinutes), notifyBack: f.notifyBack,
+        quietStart: f.quietStart || null, quietEnd: f.quietEnd || null,
+      } });
+      toast('Alertas salvos.');
+    } catch (e) { toast(e.message, 'offline'); } finally { setBusy(''); }
+  };
+  const test = async () => {
+    setBusy('test');
+    try {
+      await api.add(`${base}/alertTests`, { at: api.NOW, by: user.email });
+      toast('Teste pedido. Chega em até 1 minuto nos contatos salvos.');
+    } catch (e) { toast(e.message, 'offline'); } finally { setBusy(''); }
+  };
+  if (!can('admin')) return <EmptyState icon="bell" title="Só administradores configuram os alertas" />;
+  return (
+    <>
+      <Card title="Avisar quando uma TV parar" icon="bell" iconTone="neutral">
+        <div className="vx-form">
+          <Toggle label="Alertas ligados" help="Manda um aviso quando uma tela fica sem responder pelo tempo escolhido." checked={f.enabled} onChange={(v) => set({ enabled: v })} />
+          <div className="vx-form-row">
+            <Input label="E-mails" help={`Separe com vírgula. ${emails.length} válido(s).`} value={f.emails} onChange={(e) => set({ emails: e.target.value })} placeholder="gerente@loja.com.br" />
+            <Input label="WhatsApp" help={`Com DDD, separe com vírgula. ${phones.length} válido(s).`} value={f.whatsapps} onChange={(e) => set({ whatsapps: e.target.value })} placeholder="81 99999-0000" />
+          </div>
+          <div className="vx-form-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+            <Select label="Avisar depois de" value={f.offlineMinutes} onChange={(e) => set({ offlineMinutes: e.target.value })}
+              options={[5, 10, 15, 30, 60, 120].map((m) => ({ value: String(m), label: m < 60 ? `${m} minutos sem resposta` : `${m / 60} ${m === 60 ? 'hora' : 'horas'} sem resposta` }))} />
+            <Input label="Não avisar das" type="time" value={f.quietStart} onChange={(e) => set({ quietStart: e.target.value })} help="Ex.: 22:00, quando a loja fecha." />
+            <Input label="até as" type="time" value={f.quietEnd} onChange={(e) => set({ quietEnd: e.target.value })} help="Ex.: 06:00. Vazio = avisa a qualquer hora." />
+          </div>
+          <Toggle label="Avisar também quando a TV voltar" checked={f.notifyBack} onChange={(v) => set({ notifyBack: v })} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="primary" loading={busy === 'save'} onClick={save}>Salvar alertas</Button>
+            <Button loading={busy === 'test'} disabled={!a.enabled} onClick={test} icon="send">Enviar teste</Button>
+          </div>
+          {!a.enabled && <p className="vx-help">Salve com os alertas ligados para poder enviar um teste.</p>}
+        </div>
+      </Card>
+      <Card title="Últimos avisos" icon="clock" iconTone="neutral">
+        {!log ? <Loading /> : !log.length ? <p className="vx-help">Nenhum aviso enviado ainda.</p> : (
+          <Table rows={log} columns={[
+            { key: 'at', label: 'Quando', render: (l) => formatDateTime(l.at) },
+            { key: 'text', label: 'Aviso' },
+            { key: 'to', label: 'Para', render: (l) => (l.to || []).join(', ') },
+          ]} />
         )}
       </Card>
     </>

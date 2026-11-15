@@ -88,6 +88,56 @@ async function roleOf(token, uid, cid) {
   return role;
 }
 
+/** Campo do Firestore REST → valor JS (só os tipos que a empresa usa). */
+function fsValue(v) {
+  if (!v) return undefined;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('timestampValue' in v) return Date.parse(v.timestampValue);
+  if ('nullValue' in v) return null;
+  return undefined;
+}
+
+/** Plano da empresa (cota e licença), lido com o token de quem envia. Cache de 1 minuto. */
+const companyCache = new Map();
+async function companyOf(token, cid) {
+  const hit = companyCache.get(cid);
+  if (hit && hit.until > Date.now()) return hit.data;
+  const base = FS_EMU ? `http://${FS_EMU}` : 'https://firestore.googleapis.com';
+  const res = await fetch(`${base}/v1/projects/${PROJECT}/databases/(default)/documents/companies/${cid}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) return null;
+  const f = (await res.json())?.fields || {};
+  const data = Object.fromEntries(['status', 'trialEndsAt', 'paidUntil', 'graceDays', 'storageQuotaMB'].map((k) => [k, fsValue(f[k])]));
+  companyCache.set(cid, { data, until: Date.now() + 60_000 });
+  return data;
+}
+
+/** Mesma conta de packages/shared/src/license.js (o servidor é instalado sozinho, sem o pacote). */
+function licenseBlocked(c, now = Date.now()) {
+  const status = c.status || 'active';
+  if (status === 'suspended' || status === 'canceled') return true;
+  if (status === 'trial') return !c.trialEndsAt || c.trialEndsAt <= now;
+  if (!c.paidUntil) return false;
+  const grace = Number.isFinite(c.graceDays) ? c.graceDays : 5;
+  return now >= c.paidUntil + grace * 86400000;
+}
+
+/** Espaço usado de verdade pela empresa (soma dos arquivos na pasta dela), com cache. */
+const usageCache = new Map();
+async function usageOf(cid) {
+  if (usageCache.has(cid)) return usageCache.get(cid);
+  let total = 0;
+  try {
+    for (const f of await fsp.readdir(path.join(DATA_DIR, cid), { withFileTypes: true })) {
+      if (f.isFile() && !f.name.endsWith('.part')) total += (await fsp.stat(path.join(DATA_DIR, cid, f.name))).size;
+    }
+  } catch { /* pasta ainda não existe */ }
+  usageCache.set(cid, total);
+  return total;
+}
+
 function cors(req, res) {
   const origin = req.headers.origin;
   if (ORIGINS.includes('*')) res.setHeader('Access-Control-Allow-Origin', '*');
@@ -123,7 +173,7 @@ async function authorize(req, cid) {
   }
   const role = await roleOf(m[1], uid, cid);
   if (!WRITERS.has(role)) return { status: 403, error: 'Sem permissão para mídias desta empresa.' };
-  return { uid, role };
+  return { uid, role, token: m[1] };
 }
 
 async function handleUpload(req, res, cid, name) {
@@ -134,6 +184,12 @@ async function handleUpload(req, res, cid, name) {
 
   const declared = Number(req.headers['content-length'] || 0);
   if (declared > MAX_BYTES) return send(res, 413, { error: `Arquivo acima de ${MAX_BYTES / 1048576} MB.` });
+  // Plano: licença em dia e espaço disponível, conferidos aqui (o painel também avisa antes).
+  const company = await companyOf(auth.token, cid);
+  if (company && licenseBlocked(company)) return send(res, 402, { error: 'A assinatura desta empresa está bloqueada. Regularize com a Vetta Sistemas para enviar mídias.' });
+  const quota = (company?.storageQuotaMB || 0) * 1048576;
+  const room = quota ? quota - (await usageOf(cid)) : Infinity;
+  if (declared && declared > room) return send(res, 413, { error: 'Sem espaço no plano. Exclua mídias antigas ou amplie o plano.' });
   const ext = name.split('.').pop().toLowerCase();
   const type = (req.headers['content-type'] || '').split(';')[0];
   if (type && type !== MIME[ext] && !(ext === 'jpg' && type === 'image/jpeg')) {
@@ -150,6 +206,7 @@ async function handleUpload(req, res, cid, name) {
         for await (const chunk of src) {
           received += chunk.length;
           if (received > MAX_BYTES) throw Object.assign(new Error('grande demais'), { code: 'TOO_BIG' });
+          if (received > room) throw Object.assign(new Error('sem espaço'), { code: 'NO_ROOM' });
           yield chunk;
         }
       },
@@ -157,10 +214,12 @@ async function handleUpload(req, res, cid, name) {
     );
     if (!received) throw Object.assign(new Error('vazio'), { code: 'EMPTY' });
     await fsp.rename(part, dest);
+    usageCache.delete(cid);
   } catch (e) {
     await fsp.rm(part, { force: true });
     if (e.code === 'TOO_BIG') return send(res, 413, { error: `Arquivo acima de ${MAX_BYTES / 1048576} MB.` });
     if (e.code === 'EMPTY') return send(res, 400, { error: 'Arquivo vazio.' });
+    if (e.code === 'NO_ROOM') return send(res, 413, { error: 'Sem espaço no plano. Exclua mídias antigas ou amplie o plano.' });
     throw e;
   }
   log('upload', cid, name, received, auth.uid);
@@ -173,6 +232,7 @@ async function handleDelete(req, res, cid, name) {
   const auth = await authorize(req, cid);
   if (auth.error) return send(res, auth.status, { error: auth.error });
   await fsp.rm(dest, { force: true });
+  usageCache.delete(cid);
   log('delete', cid, name, 0, auth.uid);
   res.writeHead(204);
   res.end();

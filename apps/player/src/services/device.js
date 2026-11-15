@@ -28,6 +28,9 @@ export function createDevice(onChange) {
     companyId: null,
     screenId: null,
     manifest: local.get('manifest'),
+    // Licença da empresa bloqueada (teste acabou, mensalidade em atraso, suspensa). Fica salvo para
+    // a TV não voltar a tocar se reiniciar sem internet.
+    licenseBlocked: local.get('licenseBlocked') === true,
     orders: [],
     sync: { status: 'synced', done: 0, total: 0 },
     network: { online: navigator.onLine, type: 'wifi' },
@@ -80,12 +83,14 @@ export function createDevice(onChange) {
    * includeMetadataChanges: a confirmação do servidor às vezes chega só como metadado.
    */
   let offDevice = null;
+  let deviceConfirmedAt = 0;
   function subscribeDevice() {
     offDevice?.();
     const { db } = fb();
     offDevice = onSnapshot(doc(db, 'devices', state.uid), { includeMetadataChanges: true }, (snap) => {
       if (snap.metadata.fromCache) return;
       if (snap.exists()) {
+        deviceConfirmedAt = Date.now();
         const d = snap.data();
         if (d.kind === PAIRING_KIND.SCREEN) onPaired(d.companyId, d.targetId);
       } else if (!(state.phase === 'pairing' && !state.companyId)) {
@@ -157,23 +162,56 @@ export function createDevice(onChange) {
       return;
     }
     set({ phase: 'paired', companyId, screenId, code: null });
+    watchManifest(companyId, screenId);
+    // As regras só são conferidas ao abrir a escuta: renova a cada 15 min para a TV perceber
+    // licença bloqueada (ou reativada) sem precisar reiniciar.
+    clearInterval(manifestRenew);
+    manifestRenew = setInterval(() => { if (state.screenId === screenId) watchManifest(companyId, screenId); }, 15 * 60_000);
+    heartbeat();
+    clearInterval(hbTimer);
+    hbTimer = setInterval(heartbeat, HEARTBEAT_MS);
+    watchCommands(companyId, screenId);
+  }
+
+  /* ---------- Manifesto (o que tocar) ---------- */
+  let manifestRetry = null;
+  let manifestRenew = null;
+  let deniedAt = 0;
+  function watchManifest(companyId, screenId) {
     const { db } = fb();
     offManifest?.();
+    clearTimeout(manifestRetry);
+    const retry = (ms) => { manifestRetry = setTimeout(() => state.screenId === screenId && watchManifest(companyId, screenId), ms); };
     offManifest = onSnapshot(doc(db, 'companies', companyId, 'manifests', screenId), (snap) => {
       const manifest = snap.exists() ? toMs(snap.data()) : null;
+      // A primeira resposta pode vir do cache local, antes de o servidor recusar: só a resposta
+      // do servidor prova que a licença está em dia.
+      const fromServer = !snap.metadata.fromCache;
+      if (fromServer) deniedAt = 0;
       local.set('manifest', manifest);
-      set({ manifest });
+      if (fromServer && state.licenseBlocked) local.set('licenseBlocked', false);
+      set(fromServer ? { manifest, licenseBlocked: false } : { manifest });
       if (manifest) runSync(manifest);
       watchOrders(manifest);
     }, (e) => {
       console.warn('[vx] manifest', e.code || e);
       offManifest = null;
+      if (e.code !== 'permission-denied') return retry(15_000);
+      // Recusado: ou a tela foi desconectada, ou a licença da empresa está bloqueada.
+      // Recria o listener do aparelho (um listener antigo pode ter o dado velho): se o aparelho
+      // sumiu, ele chama onUnpaired. Se o servidor confirmar que o aparelho existe e a leitura
+      // for recusada de novo, é a licença.
+      const prev = deniedAt;
+      deniedAt = Date.now();
+      if (prev && deviceConfirmedAt > prev) {
+        local.set('licenseBlocked', true);
+        set({ licenseBlocked: true });
+        return retry(60_000);
+      }
+      lastVerify = 0;
       verifyPairing();
+      retry(8_000);
     });
-    heartbeat();
-    clearInterval(hbTimer);
-    hbTimer = setInterval(heartbeat, HEARTBEAT_MS);
-    watchCommands(companyId, screenId);
   }
 
   /* ---------- Comandos do painel (screens/{id}/live/command) ---------- */
@@ -245,8 +283,11 @@ export function createDevice(onChange) {
     clearInterval(hbTimer);
     local.set('pairing', null);
     local.set('manifest', null);
+    local.set('licenseBlocked', false);
+    clearTimeout(manifestRetry);
+    clearInterval(manifestRenew);
     cache.sync([], null); // apaga mídias da empresa anterior
-    set({ companyId: null, screenId: null, manifest: null, orders: [] });
+    set({ companyId: null, screenId: null, manifest: null, orders: [], licenseBlocked: false });
     startPairing();
   }
 
