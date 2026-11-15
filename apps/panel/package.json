@@ -1,7 +1,7 @@
 {
   "name": "@vertice/panel",
   "productName": "Vértice",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "description": "Painel de gestão do Vértice (web e desktop)",
   "author": "Vetta Sistemas",
