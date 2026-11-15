@@ -1,0 +1,29 @@
+{
+  "version": "0.3.8",
+  "nativeHash": "226c6284b4a8b9b2ca51a1716c5480599f9dae904acec9f368181e335d4b2c00",
+  "publishedAt": "2026-11-15T14:56:24.860Z",
+  "notes": "painel e player",
+  "windows": {
+    "version": "0.3.8",
+    "url": "https://github.com/arthuraf2013-hue/vertice-releases/releases/download/v0.3.8/Vertice-Player-Setup-0.3.8.exe",
+    "sha512": "vgQkqU+Iw2BWOMIdNUd66PqW9ZbASHPS5bzvWHTTkFZe+OU10HhjpuAM5p88cqZ7K/VeiPGCAZdaA1TP3hLcJw==",
+    "size": 121711906
+  },
+  "android": null,
+  "web": {
+    "version": "0.3.8",
+    "url": "https://github.com/arthuraf2013-hue/vertice-releases/releases/download/v0.3.8/vertice-player-web-0.3.8.zip",
+    "sha256": "9d44437ac93832daa7ba3390615ad185efa761d1bc1625b084ab55e72aea51b6",
+    "size": 531416,
+    "mirrors": [
+      "https://raw.githubusercontent.com/arthuraf2013-hue/vertice-releases/updates/vertice-player-web-0.3.8.zip",
+      "https://cdn.jsdelivr.net/gh/arthuraf2013-hue/vertice-releases@updates/vertice-player-web-0.3.8.zip"
+    ],
+    "minNativeCode": 307
+  },
+  "painel": null,
+  "mirrors": [
+    "https://raw.githubusercontent.com/arthuraf2013-hue/vertice-releases/updates/player-update.json",
+    "https://cdn.jsdelivr.net/gh/arthuraf2013-hue/vertice-releases@updates/player-update.json"
+  ]
+}
