@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { expandPlaylist, totalDuration, formatDuration, formatDateTime, DEFAULT_IMAGE_SECONDS, appDefaultSeconds } from '@vertice/shared';
+import { expandPlaylist, totalDuration, formatDuration, formatDateTime, mediaSeconds, gifAutoSeconds } from '@vertice/shared';
 import { useSession } from '../session.jsx';
 import { useCol, useById } from '../data/hooks.js';
 import { api } from '../data/api.js';
@@ -100,7 +100,7 @@ function PlaylistEditor({ playlist, media, mediaById, onClose, onSaved }) {
     return a;
   });
   const patch = (i, p) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)));
-  // Sem tempo próprio: o item usa o tempo da mídia (ajustável em Mídias).
+  // Sem tempo próprio: o item usa o tempo da mídia, e o campo já mostra esse tempo.
   const add = (m) => setItems((xs) => [...xs, { mediaId: m.id, durationSec: null, _k: Math.random() }]);
 
   const save = async () => {
@@ -144,10 +144,10 @@ function PlaylistEditor({ playlist, media, mediaById, onClose, onSaved }) {
                         <b title={m?.name}>{m?.name || 'Mídia removida'}</b>
                         <div className="vx-pl-fields">
                           <label className="vx-mini-field">
-                            <span>{m?.type === 'video' ? 'Duração' : 'Segundos'}</span>
+                            <span>{m?.type === 'video' ? 'Duração' : it.durationSec ? 'Segundos' : `Segundos · ${autoLabel(m)}`}</span>
                             {m?.type === 'video'
                               ? <span className="vx-mini-static">{formatDuration(m.durationSec)} (vídeo inteiro)</span>
-                              : <input className="vx-input" type="number" min={2} max={600} value={it.durationSec || ''} placeholder={`${m.defaultDurationSec || (m.type === 'app' ? appDefaultSeconds(m.app?.kind) : DEFAULT_IMAGE_SECONDS)} (${m.type === 'app' ? 'do app' : 'da mídia'})`} onChange={(e) => patch(i, { durationSec: e.target.value })} />}
+                              : <SecondsField media={m} value={it.durationSec} onChange={(v) => patch(i, { durationSec: v })} />}
                           </label>
                           <label className="vx-mini-field"><span>Exibir a partir de</span><input className="vx-input" type="date" value={it.validFrom || ''} onChange={(e) => patch(i, { validFrom: e.target.value })} /></label>
                           <label className="vx-mini-field"><span>Até</span><input className="vx-input" type="date" value={it.validTo || ''} onChange={(e) => patch(i, { validTo: e.target.value })} /></label>
@@ -184,5 +184,29 @@ function PlaylistEditor({ playlist, media, mediaById, onClose, onSaved }) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** De onde vem o tempo automático do item. */
+function autoLabel(m) {
+  if (m?.type === 'app') return 'do app';
+  if (m && !m.defaultDurationSec && gifAutoSeconds(m.animSec)) return 'do GIF';
+  return 'da mídia';
+}
+
+/**
+ * Segundos do item: já vem com o tempo da mídia. Digitar outro valor vale só para esta playlist;
+ * apagar volta ao tempo da mídia.
+ */
+function SecondsField({ media, value, onChange }) {
+  const [typing, setTyping] = useState(false);
+  const auto = mediaSeconds(media) ?? '';
+  return (
+    <input className={`vx-input ${value ? '' : 'is-auto'}`} type="number" min={2} max={600} step="any"
+      value={value || (typing ? '' : auto)}
+      title={value ? 'Tempo próprio desta playlist. Apague para voltar ao tempo da mídia.' : 'Tempo da mídia. Digite outro valor para mudar só nesta playlist.'}
+      onFocus={(e) => { if (!value) e.target.select(); }}
+      onBlur={() => setTyping(false)}
+      onChange={(e) => { setTyping(true); onChange(e.target.value); }} />
   );
 }

@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { formatBytes, formatDateTime, formatDuration } from '@vertice/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatBytes, formatDateTime, formatDuration, gifAnimationSeconds, gifAutoSeconds } from '@vertice/shared';
 import { useSession } from '../session.jsx';
 import { useCol } from '../data/hooks.js';
 import { api } from '../data/api.js';
@@ -22,7 +22,9 @@ async function inspect(file) {
         i.onerror = rej;
         i.src = url;
       });
-      return { type: 'image', width: img.naturalWidth, height: img.naturalHeight };
+      // GIF animado: guarda a duração de uma volta (0 = parado) para o tempo na tela sair sozinho.
+      const animSec = file.type === 'image/gif' ? gifAnimationSeconds(new Uint8Array(await file.arrayBuffer())) || 0 : null;
+      return { type: 'image', width: img.naturalWidth, height: img.naturalHeight, animSec };
     }
     const v = document.createElement('video');
     v.muted = true;
@@ -67,6 +69,28 @@ export function Media() {
     return m;
   }, [playlists]);
 
+  // GIFs enviados antes desta versão: lê a duração da animação uma vez e atualiza as TVs.
+  const gifsTried = useRef(new Set());
+  const canEdit = can('editor');
+  useEffect(() => {
+    if (!canEdit || !media) return;
+    const pending = media.filter((m) => m.type === 'image' && m.ext === 'gif' && m.animSec == null && m.url && !gifsTried.current.has(m.id));
+    if (!pending.length) return;
+    pending.forEach((m) => gifsTried.current.add(m.id));
+    (async () => {
+      const ops = [];
+      for (const m of pending) {
+        try {
+          const bytes = new Uint8Array(await (await fetch(m.url)).arrayBuffer());
+          ops.push({ op: 'update', path: `${base}/media/${m.id}`, data: { animSec: gifAnimationSeconds(bytes) || 0 } });
+        } catch { /* sem acesso ao arquivo agora: tenta na próxima vez que o painel abrir */ }
+      }
+      if (!ops.length) return;
+      await api.batch(ops);
+      if (ops.some((o) => o.data.animSec > 0)) await rebuildManifests(companyId);
+    })().catch(() => {});
+  }, [media, canEdit, base, companyId]);
+
   if (!media) return <Loading />;
   const quota = (company.storageQuotaMB || 0) * 1024 * 1024;
   const used = company.storageUsedBytes || 0;
@@ -98,7 +122,8 @@ export function Media() {
         await api.batch([
           { op: 'set', path: `${base}/media/${id}`, data: {
             name: file.name, type: meta.type, url, thumbUrl, ext, sizeBytes: file.size, storagePath, thumbPath,
-            width: meta.width, height: meta.height, durationSec: meta.durationSec || null,
+            width: meta.width, height: meta.height, durationSec: Number.isFinite(meta.durationSec) && meta.durationSec > 0 ? meta.durationSec : null,
+            ...(meta.animSec != null ? { animSec: meta.animSec } : {}),
             createdAt: api.NOW, createdBy: member?.name || user?.email,
           } },
           { op: 'update', path: base, data: { storageUsedBytes: api.inc(file.size) } },
@@ -231,6 +256,7 @@ export function Media() {
                   <div className="vx-faint vx-media-meta">
                     {m.type === 'video' ? formatDuration(m.durationSec) : `${m.width}×${m.height}`} · {formatBytes(m.sizeBytes)}
                     {m.type === 'image' && m.defaultDurationSec ? ` · ${m.defaultDurationSec} s` : ''}
+                    {m.type === 'image' && !m.defaultDurationSec && gifAutoSeconds(m.animSec) ? ` · GIF ${String(gifAutoSeconds(m.animSec)).replace('.', ',')} s` : ''}
                     {m.validTo ? ` · até ${m.validTo.split('-').reverse().slice(0, 2).join('/')}` : ''}
                   </div>
                   <div className="vx-media-foot">

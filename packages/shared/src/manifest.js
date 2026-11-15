@@ -1,5 +1,6 @@
 import { DEFAULT_IMAGE_SECONDS, ORDER_BOARD_DEFAULTS, DISPLAY_DEFAULTS, DISPLAY_LIMITS, FIT_MODES, MEDIA_ADJUST_LIMITS } from './constants.js';
 import { normalizeApp, appDefaultSeconds, priceListForTv } from './apps.js';
+import { gifAutoSeconds } from './gif.js';
 import { wallForScreen, wallCell, normalizeWall } from './wall.js';
 
 /**
@@ -57,6 +58,18 @@ export const orientationOf = (rotation) => (rotation === 90 || rotation === 270 
 
 /** A data mais tarde / mais cedo entre duas "YYYY-MM-DD" (null = sem limite). */
 const laterDate = (a, b) => (!a ? b || null : !b ? a : a > b ? a : b);
+/**
+ * Tempo da própria mídia, usado quando o item da playlist não define o seu:
+ * vídeo = duração inteira; imagem = tempo ajustado em Mídias, senão as voltas do GIF, senão o padrão;
+ * aplicativo = tempo do aplicativo.
+ */
+export function mediaSeconds(m) {
+  if (!m) return null;
+  if (m.type === 'video') return Math.ceil(m.durationSec || 0) || null;
+  if (m.type === 'app') return Number(m.defaultDurationSec) || appDefaultSeconds(normalizeApp(m.app)?.kind);
+  return Number(m.defaultDurationSec) || gifAutoSeconds(m.animSec) || DEFAULT_IMAGE_SECONDS;
+}
+
 const earlierDate = (a, b) => (!a ? b || null : !b ? a : a < b ? a : b);
 
 /**
@@ -72,10 +85,7 @@ export function expandPlaylist(playlist, mediaById, priceById = null) {
       if (!m) return null;
       if (m.type === 'app') return expandApp(playlist, it, idx, m, priceById, mediaById);
       if (!m.url) return null;
-      const durationSec =
-        m.type === 'video'
-          ? Number(it.durationSec) || Math.ceil(m.durationSec || 0) || null
-          : Number(it.durationSec) || Number(m.defaultDurationSec) || DEFAULT_IMAGE_SECONDS;
+      const durationSec = Number(it.durationSec) || mediaSeconds(m);
       return {
         key: `${playlist.id}:${idx}`,
         mediaId: m.id,

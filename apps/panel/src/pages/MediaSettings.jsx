@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { DEFAULT_IMAGE_SECONDS, FIT_MODES, formatBytes, formatDateTime, formatDuration } from '@vertice/shared';
+import { DEFAULT_IMAGE_SECONDS, FIT_MODES, formatBytes, formatDateTime, formatDuration, gifAutoSeconds } from '@vertice/shared';
 import { Modal, Button, Input, Select, Toggle, Field } from '../ui/kit.jsx';
 
 const KEEP = '__keep';
@@ -19,6 +19,7 @@ export function MediaSettings({ items, onClose, onSave, readOnly, advertisers = 
   const single = items.length === 1 ? items[0] : null;
   const images = items.filter((m) => m.type === 'image');
   const videos = items.filter((m) => m.type === 'video');
+  const gifAuto = single ? gifAutoSeconds(single.animSec) : null;
   const initial = useMemo(() => ({
     name: single?.name || '',
     duration: images.length ? common(images, (m) => String(m.defaultDurationSec || '')) : KEEP,
@@ -101,8 +102,8 @@ export function MediaSettings({ items, onClose, onSave, readOnly, advertisers = 
           {single && <Input label="Nome" value={f.name} onChange={(e) => set({ name: e.target.value })} />}
           {images.length > 0 && (
             <Field label={`Tempo na tela${single ? '' : ` (${images.length} ${images.length === 1 ? 'imagem' : 'imagens'})`}`}
-              help={`Em segundos. Vazio = ${DEFAULT_IMAGE_SECONDS} s. Uma playlist pode definir um tempo próprio para o item.`}>
-              <input className="vx-input" type="number" min={2} max={600} placeholder={f.duration === KEEP ? 'Valores diferentes' : String(DEFAULT_IMAGE_SECONDS)}
+              help={`Em segundos. Vazio = ${gifAuto ? `${String(gifAuto).replace('.', ',')} s (voltas inteiras do GIF)` : `${DEFAULT_IMAGE_SECONDS} s`}. Uma playlist pode definir um tempo próprio para o item.`}>
+              <input className="vx-input" type="number" min={2} max={600} placeholder={f.duration === KEEP ? 'Valores diferentes' : String(gifAuto || DEFAULT_IMAGE_SECONDS)}
                 value={f.duration === KEEP ? '' : f.duration} onChange={(e) => set({ duration: e.target.value })} />
             </Field>
           )}
