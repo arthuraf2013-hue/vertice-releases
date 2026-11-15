@@ -62,15 +62,10 @@ Quem envia é o **serviço de alertas** (`servers/worker`), que também manda:
 3. **Regras:** `npm run deploy:rules`.
 4. **Site e painel:** `npm run deploy:hosting`. O site fica na raiz, o painel em `/app/` e o player web em
    `/tv/`. Links antigos do painel (`/#/...`) são levados para `/app/#/...`.
-5. **Serviço de alertas**, no mesmo computador do servidor de mídias:
-   ```bash
-   cd servers/worker
-   cp .env.example .env        # preencha SMTP e, se quiser, WhatsApp e VETTA_EMAIL
-   # baixe a chave da conta de serviço (Firebase › Configurações › Contas de serviço) como conta-de-servico.json
-   npm install && npm start
-   ```
-   Deixe rodando como serviço (no Windows, `nssm install VerticeAlertas "C:\\Program Files\\nodejs\\node.exe" worker.js`
-   na pasta `servers/worker`; no Linux, um `systemd`). `npm run once` roda tudo uma vez, para testar.
+5. **Servidor de mídias e serviço de alertas** na VPS: preencha `servers/worker/.env` (SMTP e `VETTA_EMAIL`),
+   salve a chave da conta de serviço como `servers/worker/conta-de-servico.json` e rode
+   `npm run vps -- -Servidor root@IP -Dominio midias.vettasistemas.com.br`. Passo a passo em [VPS.md](VPS.md).
+   Para testar os alertas na VPS: `cd /opt/vertice/alertas && set -a && . /etc/vertice/alertas.env && node worker.js --once`.
 6. **WhatsApp (opcional):** Z-API, Evolution API ou um webhook próprio (`WHATSAPP_PROVIDER` no `.env`).
 7. **Termos e privacidade:** `apps/site/termos.html` e `privacidade.html` são minutas. Preencha razão social,
    CNPJ e e-mail e passe por um advogado antes de divulgar.

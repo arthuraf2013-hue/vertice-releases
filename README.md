@@ -29,7 +29,7 @@ Estados do player para conferir o visual: `http://localhost:5174/?demo=pairing` 
 
 ### Com Firebase de verdade
 
-1. Projeto Firebase do Vértice: `vertice-7ffa0`. Usa **Authentication** (E-mail/senha e Anônimo) e **Firestore**. As mídias ficam no servidor próprio (`servers/media`), não no Firebase Storage.
+1. Projeto Firebase do Vértice: `vertice-7ffa0`. Usa **Authentication** (E-mail/senha e Anônimo) e **Firestore**. As mídias ficam no servidor próprio (`servers/media`), não no Firebase Storage. Em produção ele roda numa VPS com HTTPS, junto com o serviço de alertas: veja [docs/VPS.md](docs/VPS.md).
 2. Copie `apps/panel/.env.example` e `apps/player/.env.example` para `.env` e preencha com o app Web do projeto.
 3. Troque `vertice-xxxx` em `.firebaserc` pelo id do projeto.
 4. Publique as regras: `npm run deploy:rules`.
@@ -50,6 +50,7 @@ npm run emulators           # auth, firestore e storage locais
 ```bash
 npm test                    # regras de negócio (status, pareamento, manifesto, pedidos)
 npm run test:rules          # regras de segurança do Firestore no emulador
+npm run test:servicos       # serviço de alertas e troca de endereço das mídias, no emulador
 npm run e2e                 # fluxo completo: conta → parear TV → mídia → grade → GerenciaAI → pedido na TV
 ```
 
@@ -62,7 +63,8 @@ Na pasta do projeto, no PowerShell:
 | O quê | Comando | Saída |
 |---|---|---|
 | Instalar dependências (1ª vez e quando o package.json mudar) | `npm install` | — |
-| Servidor de mídias neste PC | `npm run midias` | ouve na porta 8787 |
+| Servidor de mídias na VPS (instala ou atualiza) | `npm run vps -- -Servidor root@IP -Dominio midias.vettasistemas.com.br` | veja `docs/VPS.md` |
+| Servidor de mídias neste PC (só para testes) | `npm run midias` | ouve na porta 8787 |
 | Painel Windows | `npm run win:painel` | `apps/panel/release/Vertice-Painel-Setup-x.y.z.exe` |
 | Player Windows | `npm run win:player` | `apps/player/release/Vertice-Player-Setup-x.y.z.exe` |
 | APK da TV | `npm run apk` | `apps/player/android/app/build/outputs/apk/debug/app-debug.apk` |

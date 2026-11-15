@@ -1,0 +1,21 @@
+[Unit]
+Description=Vértice - servidor de mídias
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=vertice
+Group=vertice
+WorkingDirectory=/opt/vertice/midias
+EnvironmentFile=/etc/vertice/midias.env
+ExecStart=@NODE@ server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/vertice/midias
+
+[Install]
+WantedBy=multi-user.target

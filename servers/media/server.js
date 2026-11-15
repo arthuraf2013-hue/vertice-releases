@@ -15,6 +15,7 @@
 //   PUBLIC_URL            endereço público, ex.: https://midias.vettasistemas.com.br
 //                         (vazio = IP deste PC na rede local, ex.: http://192.168.0.10:8787)
 //   PORT                  porta (padrão 8787)
+//   HOST                  interface (padrão todas; na VPS 127.0.0.1, atrás do Caddy com HTTPS)
 //   DATA_DIR              pasta das mídias (padrão ./data)
 //   MAX_UPLOAD_MB         tamanho máximo por arquivo (padrão 500)
 //   ALLOWED_ORIGINS       origens do painel separadas por vírgula (padrão *)
@@ -34,6 +35,7 @@ loadDotEnv(path.join(HERE, '.env'));
 
 const PROJECT = process.env.FIREBASE_PROJECT_ID;
 const PORT = Number(process.env.PORT || 8787);
+const HOST = process.env.HOST || undefined;
 const DATA_DIR = path.resolve(HERE, process.env.DATA_DIR || 'data');
 const MAX_BYTES = Number(process.env.MAX_UPLOAD_MB || 500) * 1024 * 1024;
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://${lanAddress()}:${PORT}`).replace(/\/$/, '');
@@ -309,7 +311,7 @@ const server = http.createServer(async (req, res) => {
 });
 // Uploads grandes em conexão lenta: sem limite de tempo por requisição.
 server.requestTimeout = 0;
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   log(`[midias] ouvindo na porta ${PORT} · projeto ${PROJECT} · pasta ${DATA_DIR}`);
   log(`[midias] endereço público: ${PUBLIC_URL}${AUTH_EMU ? ' · usando emuladores' : ''}`);
 });

@@ -1,0 +1,8 @@
+# Vértice: HTTPS automático na frente do servidor de mídias (gerado pelo instalar.sh).
+@DOMINIO@ {
+	reverse_proxy 127.0.0.1:8787 {
+		# Vídeos grandes: repassa sem segurar em memória.
+		flush_interval -1
+	}
+	header -Server
+}
