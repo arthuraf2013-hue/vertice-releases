@@ -52,7 +52,7 @@ function SmallQr({ text }) {
   return (
     <svg className="vx-comments-qr" viewBox={`-4 -4 ${n} ${n}`} shapeRendering="crispEdges" role="img" aria-label="QR Code do mural">
       <rect x="-4" y="-4" width={n} height={n} fill="#fff" />
-      <path d={qrPath(m)} fill="#141b26" />
+      <path d={qrPath(m)} fill="#060b1c" />
     </svg>
   );
 }

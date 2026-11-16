@@ -3,11 +3,11 @@
 // Extras: &rot=90 &zoom=95 &x=2 &y=-1 &fit=blur &calib=1 &poster=1 (arte vertical 9:16)
 import { ORDER_BOARD_DEFAULTS, priceListForTv } from '@vertice/shared';
 
-function art(over, title, price, tone = '#141b26', mid = '#293548') {
+function art(over, title, price, tone = '#060b1c', mid = '#0f1f4d') {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="1920" height="1080">
 <rect width="320" height="180" fill="${tone}"/><rect x="196" y="-20" width="150" height="220" rx="16" fill="${mid}"/>
-<circle cx="262" cy="92" r="46" fill="#d9a84e"/>
-<text x="20" y="54" font-family="Manrope,sans-serif" font-size="11" font-weight="700" letter-spacing="1.3" fill="#d9a84e">${over}</text>
+<circle cx="262" cy="92" r="46" fill="#e8a93a"/>
+<text x="20" y="54" font-family="Manrope,sans-serif" font-size="11" font-weight="700" letter-spacing="1.3" fill="#e8a93a">${over}</text>
 <text x="20" y="88" font-family="Sora,sans-serif" font-size="24" font-weight="700" fill="#fff">${title}</text>
 <text x="20" y="128" font-family="Sora,sans-serif" font-size="34" font-weight="700" fill="#fff">${price}</text></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -19,7 +19,7 @@ const items = [
 ];
 function poster() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 320" width="1080" height="1920">
-<rect width="180" height="320" fill="#5c2232"/><circle cx="90" cy="150" r="62" fill="#d9a84e"/>
+<rect width="180" height="320" fill="#5c2232"/><circle cx="90" cy="150" r="62" fill="#e8a93a"/>
 <text x="16" y="44" font-family="Manrope,sans-serif" font-size="10" font-weight="700" letter-spacing="1.2" fill="#ffd9a0">COMBO DO DIA</text>
 <text x="16" y="250" font-family="Sora,sans-serif" font-size="22" font-weight="700" fill="#fff">Cachorro-quente</text>
 <text x="16" y="290" font-family="Sora,sans-serif" font-size="30" font-weight="700" fill="#fff">R$ 14,90</text></svg>`;

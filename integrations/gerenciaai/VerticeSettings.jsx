@@ -60,7 +60,7 @@ export function VerticeSettings({ vx }) {
       {s.status === 'pairing' && (
         <>
           <p style={muted}>No painel Vértice, abra <b>Empresa › Integrações › Conectar caixa</b> e digite:</p>
-          <div style={code}>{s.code.slice(0, 3)}<span style={{ color: '#d9a84e', margin: '0 .2em' }}>·</span>{s.code.slice(3)}</div>
+          <div style={code}>{s.code.slice(0, 3)}<span style={{ color: '#e8a93a', margin: '0 .2em' }}>·</span>{s.code.slice(3)}</div>
           <p style={muted}>O código vale por 30 minutos. Esta tela muda sozinha quando conectar.</p>
           <button type="button" style={btn} onClick={() => vx.cancelPairing()}>Cancelar</button>
         </>
@@ -82,6 +82,6 @@ export function VerticeSettings({ vx }) {
 const box = { border: '1px solid #e3e8ee', borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 560 };
 const muted = { margin: 0, color: '#4b5a70', fontSize: 14, lineHeight: '22px' };
 const badge = { margin: 0, alignSelf: 'flex-start', padding: '4px 10px', borderRadius: 6, fontSize: 13, fontWeight: 700 };
-const code = { fontFamily: 'Sora, system-ui, sans-serif', fontSize: 56, fontWeight: 700, letterSpacing: '.06em', color: '#141b26' };
+const code = { fontFamily: 'Sora, system-ui, sans-serif', fontSize: 56, fontWeight: 700, letterSpacing: '.06em', color: '#060b1c' };
 const btn = { alignSelf: 'flex-start', height: 40, padding: '0 16px', borderRadius: 10, border: '1px solid #8795a8', background: '#fff', fontWeight: 600, cursor: 'pointer' };
-const primary = { background: '#293548', borderColor: '#293548', color: '#fff' };
+const primary = { background: '#0f1f4d', borderColor: '#0f1f4d', color: '#fff' };

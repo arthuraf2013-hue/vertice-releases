@@ -16,7 +16,7 @@ export function Logo({ size = 36, endorse = true, dark }) {
       <img src={isDark ? simboloEscuro : simbolo} width={size} height={size} alt="" />
       <span>
         <Wordmark />
-        {endorse && <span className="vx-logo-endorse">POR VETTA SISTEMAS</span>}
+        {endorse && <span className="vx-logo-endorse">UMA SOLUÇÃO VETTA</span>}
       </span>
     </span>
   );

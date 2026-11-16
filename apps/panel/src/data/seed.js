@@ -3,13 +3,13 @@ import { ORDER_BOARD_DEFAULTS } from '@vertice/shared';
 
 /** Arte de oferta em SVG (substitui imagens reais na demonstração). */
 export function offerArt({ over, title, price, unit = '', tone = 'navy', w = 1920, h = 1080 }) {
-  const bg = { navy: '#141b26', wine: '#3a1620', green: '#10261d', coffee: '#2a1c12' }[tone] || '#141b26';
-  const mid = { navy: '#293548', wine: '#5c2232', green: '#1d3f30', coffee: '#4a3220' }[tone] || '#293548';
+  const bg = { navy: '#060b1c', wine: '#3a1620', green: '#10261d', coffee: '#2a1c12' }[tone] || '#060b1c';
+  const mid = { navy: '#0f1f4d', wine: '#5c2232', green: '#1d3f30', coffee: '#4a3220' }[tone] || '#0f1f4d';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="${w}" height="${h}">
 <rect width="320" height="180" fill="${bg}"/>
 <rect x="196" y="-20" width="150" height="220" rx="16" fill="${mid}"/>
-<circle cx="262" cy="92" r="46" fill="#d9a84e"/>
-<text x="20" y="54" font-family="Manrope,sans-serif" font-size="11" font-weight="700" letter-spacing="1.3" fill="#d9a84e">${over}</text>
+<circle cx="262" cy="92" r="46" fill="#e8a93a"/>
+<text x="20" y="54" font-family="Manrope,sans-serif" font-size="11" font-weight="700" letter-spacing="1.3" fill="#e8a93a">${over}</text>
 <text x="20" y="88" font-family="Sora,sans-serif" font-size="${title.length > 14 ? 20 : 26}" font-weight="700" fill="#fff">${title}</text>
 ${price ? `<text x="20" y="128" font-family="Sora,sans-serif" font-size="34" font-weight="700" fill="#fff">${price}</text>` : ''}
 ${unit ? `<text x="${20 + price.length * 19}" y="128" font-family="Manrope,sans-serif" font-size="13" font-weight="600" fill="#c9d2de">${unit}</text>` : ''}

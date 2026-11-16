@@ -96,7 +96,7 @@ function createWindow() {
     maximizable: !telaCheia,
     fullscreenable: false,
     autoHideMenuBar: true,
-    backgroundColor: '#0b1017',
+    backgroundColor: '#050a1a',
     title: 'Vértice Player',
     show: false,
     webPreferences: {

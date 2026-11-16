@@ -2,7 +2,7 @@
   "appId": "br.com.vettasistemas.vertice.player",
   "appName": "Vértice Player",
   "webDir": "dist",
-  "backgroundColor": "#141b26",
+  "backgroundColor": "#060b1c",
   "android": {
     "allowMixedContent": true,
     "captureInput": true,

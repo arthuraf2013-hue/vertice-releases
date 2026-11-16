@@ -118,7 +118,7 @@ function TvGlyph({ rotation }) {
     <svg viewBox="0 0 48 48" className="vx-rot-glyph" aria-hidden>
       <rect x={x} y={y} width={w} height={h} rx="3" fill="var(--vetta-night)" />
       <rect x={x + 3} y={y + 3} width={w - 6} height={h - 6} rx="1.5" fill="var(--vetta-navy)" />
-      <rect x={chin[0]} y={chin[1]} width={chin[2]} height={chin[3]} rx="1.5" fill="#0b1017" />
+      <rect x={chin[0]} y={chin[1]} width={chin[2]} height={chin[3]} rx="1.5" fill="#050a1a" />
       <circle cx={chin[0] + chin[2] / 2} cy={chin[1] + chin[3] / 2} r="1.4" fill="var(--vetta-gold)" />
     </svg>
   );

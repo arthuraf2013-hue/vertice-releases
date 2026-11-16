@@ -2,7 +2,7 @@
 @import '@vertice/shared/styles/fonts.css';
 
 :root {
-  --night: #141b26; --gold: #d9a84e; --paper: #f4f6f9; --card: #fff; --line: #dde3ea; --ink: #141b26; --muted: #4b5a70; --bad: #b3261e;
+  --night: #060b1c; --gold: #e8a93a; --paper: #f4f6f9; --card: #fff; --line: #dde3ea; --ink: #060b1c; --muted: #4b5a70; --bad: #b3261e;
   --display: 'Sora', 'Manrope', system-ui, sans-serif; --sans: 'Manrope', system-ui, sans-serif;
 }
 *, *::before, *::after { box-sizing: border-box; }

@@ -56,17 +56,17 @@ export function Login() {
       <aside className="vx-login-art" data-theme="dark">
         <Logo size={44} dark />
         <div className="vx-login-hero">
-          <svg viewBox="0 0 560 340" className="vx-login-pyr" aria-hidden>
-            <polygon points="0,340 280,40 160,340" fill="#34445e" />
-            <polygon points="160,340 280,40 400,340" fill="#293548" />
-            <polygon points="400,340 280,40 560,340" fill="#141b26" />
-            <polyline points="0,340 280,40 560,340" fill="none" stroke="#d9a84e" strokeWidth="3" />
-            <polyline points="160,340 280,40 400,340" fill="none" stroke="rgba(238,242,247,.18)" strokeWidth="1.5" />
-            <circle cx="280" cy="40" r="18" fill="none" stroke="#d9a84e" strokeWidth="2" className="vx-pulse" />
-            <circle cx="280" cy="40" r="7" fill="#d9a84e" />
+          <svg viewBox="0 0 340 300" className="vx-login-pyr" aria-hidden>
+            <defs>
+              <linearGradient id="lb" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0d2f8f" /><stop offset="1" stop-color="#3b7bff" /></linearGradient>
+              <linearGradient id="lg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#c98a1c" /><stop offset="1" stop-color="#f7c862" /></linearGradient>
+            </defs>
+            <polygon points="20,290 150,30 210,30 210,120 90,290" fill="url(#lb)" />
+            <polygon points="110,290 220,90 330,290 275,290 220,190 165,290" fill="url(#lg)" />
+            <polygon points="210,120 210,160 165,290 140,290" fill="#fff" fillOpacity=".85" />
           </svg>
           <div className="vx-overline" style={{ color: 'var(--vetta-gold)' }}>DIGITAL SIGNAGE</div>
-          <h1>O ponto para onde o olhar converge.</h1>
+          <h1>Sua comunicação em outro nível.</h1>
           <p>Mídias, ofertas e pedidos prontos nas telas da sua loja, controlados de um lugar só.</p>
         </div>
         <div className="vx-login-foot">Vetta Sistemas · Recife</div>

@@ -30,7 +30,7 @@ async def main():
 
         # Gera a imagem da oferta com o próprio navegador.
         art = await b.new_page(viewport={'width': 1280, 'height': 720})
-        await art.set_content('<div style="width:1280px;height:720px;background:#141b26;color:#fff;font:700 96px sans-serif;display:grid;place-items:center">Oferta E2E · R$ 9,90</div>')
+        await art.set_content('<div style="width:1280px;height:720px;background:#060b1c;color:#fff;font:700 96px sans-serif;display:grid;place-items:center">Oferta E2E · R$ 9,90</div>')
         await art.screenshot(path=PNG)
         await art.close()
 

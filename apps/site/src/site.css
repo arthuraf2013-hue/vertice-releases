@@ -1,9 +1,9 @@
 @import '@vertice/shared/styles/fonts.css';
 
 :root {
-  --night: #141b26; --navy: #293548; --slate: #34445e; --deep: #0b1017;
-  --gold: #d9a84e; --gold-ink: #8a5f12;
-  --paper: #f4f6f9; --card: #ffffff; --line: #e3e8ee; --ink: #141b26; --muted: #4b5a70; --online: #11724f;
+  --night: #060b1c; --navy: #0f1f4d; --slate: #1b3a86; --deep: #050a1a;
+  --gold: #e8a93a; --gold-ink: #8a5f12;
+  --paper: #f4f6f9; --card: #ffffff; --line: #e3e8ee; --ink: #060b1c; --muted: #4b5a70; --online: #11724f;
   --on-dark: #eef2f7; --on-dark-muted: #a3b2c6;
   --display: 'Sora', 'Manrope', system-ui, sans-serif;
   --sans: 'Manrope', system-ui, sans-serif;
@@ -55,7 +55,7 @@ a { color: inherit; }
 /* A TV do exemplo (o elemento principal da página) */
 .tv-wrap { margin: 0; }
 .tv { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; border: 10px solid #05080d; background: var(--deep); box-shadow: 0 40px 80px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .06); overflow: hidden; container-type: inline-size; }
-.tv-stand { width: 22%; height: 14px; margin: 0 auto; background: linear-gradient(#0b1017, #1d2532); border-radius: 0 0 8px 8px; }
+.tv-stand { width: 22%; height: 14px; margin: 0 auto; background: linear-gradient(#050a1a, #1d2532); border-radius: 0 0 8px 8px; }
 .scene { position: absolute; inset: 0 0 11cqw; display: flex; opacity: 0; transition: opacity .6s ease; }
 .scene.is-on { opacity: 1; }
 .tv-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 11cqw; display: flex; align-items: center; gap: 4cqw; padding: 0 4cqw; background: #0e141d; color: var(--on-dark-muted); font: 600 2.6cqw/1 var(--sans); }
@@ -67,7 +67,7 @@ a { color: inherit; }
 .offer-price small { font-size: .38em; vertical-align: .9em; margin: 0 .1em; }
 .offer-price em { font-style: normal; font-size: .28em; color: var(--on-dark-muted); margin-left: .3em; letter-spacing: 0; }
 .offer-foot { margin-top: 2cqw; font-size: 2.4cqw; color: var(--on-dark-muted); }
-.offer-art { flex: 1; position: relative; background: linear-gradient(160deg, #34445e, #1d2635); }
+.offer-art { flex: 1; position: relative; background: linear-gradient(160deg, #1b3a86, #1d2635); }
 .offer-art i { position: absolute; border-radius: 50% / 46%; background: radial-gradient(ellipse at 45% 30%, #f6d9a0, #d99a45 55%, #9a6326); box-shadow: inset -1cqw -1.6cqw 2.4cqw rgba(0, 0, 0, .28), 0 1.4cqw 2cqw rgba(0, 0, 0, .3); }
 /* O corte do pão francês: uma pestana clara no meio. */
 .offer-art i::after { content: ''; position: absolute; left: 18%; right: 18%; top: 38%; height: 16%; border-radius: 50%; background: linear-gradient(#fbe7bd, #e7b56a); transform: rotate(-6deg); box-shadow: 0 .3cqw .4cqw rgba(120, 70, 20, .35); }

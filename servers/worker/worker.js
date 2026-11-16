@@ -48,10 +48,10 @@ const mailer = process.env.SMTP_HOST
 async function sendEmail(to, subject, text) {
   if (!to.length) return 'sem destinatário';
   if (!mailer) return 'e-mail não configurado no servidor';
-  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;color:#141b26">
-<p style="font-weight:700;color:#293548;letter-spacing:.04em">VÉRTICE</p>
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;color:#060b1c">
+<p style="font-weight:700;color:#0f1f4d;letter-spacing:.04em">VÉRTICE</p>
 ${text.split('\n').map((l) => `<p style="font-size:15px;line-height:1.5;margin:0 0 10px">${l.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c])}</p>`).join('')}
-<p style="margin:22px 0"><a href="${PANEL_URL}" style="background:#293548;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:600">Abrir o painel</a></p>
+<p style="margin:22px 0"><a href="${PANEL_URL}" style="background:#0f1f4d;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:600">Abrir o painel</a></p>
 <p style="font-size:12px;color:#6b7686;border-top:1px solid #e3e7ee;padding-top:10px">Vértice · Vetta Sistemas. Você recebe este aviso porque está cadastrado nos alertas da empresa.</p></div>`;
   await mailer.sendMail({ from: process.env.MAIL_FROM || process.env.SMTP_USER, to: to.join(', '), subject, text: `${text}\n\n${PANEL_URL}`, html });
   return 'enviado';
