@@ -63,6 +63,16 @@ const P = {
   bell: <><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z" /><path d="M10 21h4" /></>,
   shield: <><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /><path d="M9 12l2 2 4-4" /></>,
   wallet: <><path d="M4 7h15a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a2 2 0 0 1 2-2h11" /><path d="M16 13.5h.1" /></>,
+  message: <path d="M4 5h16v11H9l-5 4z" />,
+  rain: <><path d="M7 15h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 6a4.5 4.5 0 0 0 1 9z" /><path d="M8 18l-1 2M12 18l-1 2M16 18l-1 2" /></>,
+  wind: <path d="M3 9h11a3 3 0 1 0-3-3M3 13h15a3 3 0 1 1-3 3M3 17h7" />,
+  ball: <><circle cx="12" cy="12" r="9" /><path d="M12 7l4 3-1.5 4.5h-5L8 10zM12 7V3M16 10l4-1M14.5 14.5l2 4M9.5 14.5l-2 4M8 10L4 9" /></>,
+  trophy: <><path d="M8 4h8v6a4 4 0 0 1-8 0zM8 6H4a3 3 0 0 0 4 4M16 6h4a3 3 0 0 1-4 4M12 14v3M8 21h8M9 17h6v4H9z" /></>,
+  coin: <><circle cx="12" cy="12" r="9" /><path d="M15 9a3 2.5 0 0 0-3-1.5c-1.7 0-3 .9-3 2s1.3 1.8 3 2 3 .9 3 2-1.3 2-3 2a3 2.5 0 0 1-3-1.5M12 6v1.5M12 16.5V18" /></>,
+  hourglass: <path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9s10 4 10 9" />,
+  gift: <><rect x="3" y="9" width="18" height="12" rx="1" /><path d="M3 13h18M12 9v12M12 9c-2-4-6-4-6-1.5S9 9 12 9zm0 0c2-4 6-4 6-1.5S15 9 12 9z" /></>,
+  book: <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7" />,
+  quote: <path d="M5 11h4v6H4v-5a7 7 0 0 1 4-6M15 11h4v6h-5v-5a7 7 0 0 1 4-6" />,
   more: <path d="M5 12v.1M12 12v.1M19 12v.1" />,
 };
 

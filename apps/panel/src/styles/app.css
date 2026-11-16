@@ -760,3 +760,30 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .vx-client-name small { color: var(--ink-faint); font-size: 12px; }
 .vx-mono { font-family: var(--font-mono); font-size: 13px; }
 @media (max-width: 720px) { .vx-kv { grid-template-columns: 1fr; gap: 2px; } .vx-kv dd { margin-bottom: var(--space-2); } }
+
+/* ---------- Aplicativos de dados: lista de portais ---------- */
+.vx-feed-row { align-items: end; grid-template-columns: 1fr 2fr auto; }
+.vx-feed-row .vx-icon-btn, .vx-comments-link .vx-icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-sm, 8px); border: 1px solid var(--line-strong); background: var(--bg-card); color: var(--ink); cursor: pointer; margin-bottom: 2px; }
+.vx-chip-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.vx-chip-btn svg { width: 14px; height: 14px; vertical-align: -2px; }
+
+/* ---------- Comentários (moderação dos murais) ---------- */
+.vx-comments { display: flex; flex-direction: column; gap: var(--space-4); }
+.vx-comments-pick { max-width: 360px; margin-bottom: var(--space-4); }
+.vx-comments-board { display: flex; gap: var(--space-5, 20px); align-items: flex-start; }
+.vx-comments-qr { flex: none; width: 148px; height: 148px; border-radius: 12px; border: 1px solid var(--line-soft); }
+.vx-comments-board-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.vx-comments-question { margin: 0; font-family: var(--font-display); font-size: 18px; line-height: 26px; font-weight: 600; }
+.vx-comments-link { display: flex; align-items: center; gap: var(--space-2); }
+.vx-comments-link code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--bg-subtle, rgba(128,128,128,.08)); }
+.vx-comments-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4) 0; border-bottom: 1px solid var(--line-soft); }
+.vx-comments-list { list-style: none; margin: 0; padding: 0; }
+.vx-comment { display: flex; gap: var(--space-4); align-items: flex-start; padding: var(--space-4); border-top: 1px solid var(--line-soft); }
+.vx-comment:first-child { border-top: 0; }
+.vx-comment-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.vx-comment-text p { margin: 0; font-size: 15px; line-height: 22px; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .vx-comments-board { flex-direction: column; }
+  .vx-comment { flex-direction: column; }
+  .vx-feed-row { grid-template-columns: 1fr; }
+}

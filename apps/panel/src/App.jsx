@@ -15,6 +15,7 @@ import { Company } from './pages/Company.jsx';
 import { Downloads } from './pages/Downloads.jsx';
 import { Captures } from './pages/Captures.jsx';
 import { Apps } from './pages/Apps.jsx';
+import { Comments } from './pages/Comments.jsx';
 import { Price } from './pages/Price.jsx';
 import { Reports } from './pages/Reports.jsx';
 import { Advertisers } from './pages/Advertisers.jsx';
@@ -64,6 +65,7 @@ function Gate() {
         <Route path="programacao" element={<Schedules />} />
         <Route path="capturas" element={<Captures />} />
         <Route path="aplicativos" element={<Apps />} />
+        <Route path="comentarios" element={<Comments />} />
         <Route path="price" element={<Price />} />
         <Route path="relatorios" element={<Reports />} />
         <Route path="anunciantes" element={<Advertisers />} />

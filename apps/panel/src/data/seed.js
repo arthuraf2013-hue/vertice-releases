@@ -159,6 +159,19 @@ export function seedDemo({ set }) {
       { name: 'Tapioca de queijo', unit: 'un', price: 10 },
     ],
   });
+  // Mural de comentários com comentários esperando, aprovados e um oculto.
+  const muralLink = 'https://vertice.vettasistemas.com.br/comentar?e=demo&m=app-mural';
+  set(`${c}/media/app-mural`, { type: 'app', name: 'Mural do café da manhã', app: { kind: 'comments', config: { title: 'Deixe seu recado', question: 'O que você achou do nosso café da manhã?', showQr: true, rotateSec: 8, maxShown: 3, autoApprove: false, blockedWords: '', boardId: 'app-mural', link: muralLink, theme: 'brand' } }, sizeBytes: 0, createdAt: now - 5 * 1440 * MIN });
+  set(`${c}/commentBoards/app-mural`, { title: 'Deixe seu recado', question: 'O que você achou do nosso café da manhã?', open: true, autoApprove: false, companyName: 'Padaria Boa Massa', theme: 'brand', updatedAt: now - 5 * 1440 * MIN });
+  set(`${c}/commentSettings/app-mural`, { autoApprove: false, words: [], blockPattern: 'a^' });
+  [
+    ['cm1', 'Mariana', 'Atendimento nota 10! O cuscuz de domingo é o melhor da cidade.', 'pending', 6],
+    ['cm2', 'João Pedro', 'Poderiam ter mais opções sem glúten no café da manhã?', 'pending', 18],
+    ['cm3', '', 'Pão de queijo sempre quentinho, parabéns à equipe!', 'pending', 42],
+    ['cm4', 'Carla', 'Equipe muito simpática, voltarei com a família.', 'approved', 180],
+    ['cm5', 'Rafael', 'Melhor bolo de rolo de Recife.', 'approved', 300],
+    ['cm6', 'x', 'Propaganda: compre seguidores em…', 'hidden', 600],
+  ].forEach(([id, name, text, status, min]) => set(`${c}/commentBoards/app-mural/comments/${id}`, { name, text, status, createdAt: now - min * MIN, uid: `anon-${id}`, ...(status !== 'pending' ? { moderatedAt: now - (min - 5) * MIN } : {}) }));
   set(`${c}/media/price_pl1`, { type: 'app', name: 'Preços · Pães e salgados', app: { kind: 'price', config: { listId: 'pl1' } }, sizeBytes: 0, createdAt: now - 2 * 60 * MIN });
 
   // Estúdio (Fase 3).

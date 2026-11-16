@@ -11,7 +11,7 @@ import { rebuildManifests } from '../data/manifests.js';
 const NAV = [
   ['PAINEL', [['/', 'dashboard', 'Dashboard']]],
   ['OPERAÇÃO', [['/telas', 'screen', 'Telas'], ['/monitoramento', 'pulse', 'Monitoramento'], ['/capturas', 'camera', 'Capturas']]],
-  ['CONTEÚDO', [['/midias', 'image', 'Mídias'], ['/playlists', 'playlist', 'Playlists'], ['/programacao', 'calendar', 'Programação'], ['/aplicativos', 'apps', 'Aplicativos'], ['/price', 'tag', 'Price'], ['/estudio', 'palette', 'Estúdio'], ['/videowall', 'wall', 'Video wall']]],
+  ['CONTEÚDO', [['/midias', 'image', 'Mídias'], ['/playlists', 'playlist', 'Playlists'], ['/programacao', 'calendar', 'Programação'], ['/aplicativos', 'apps', 'Aplicativos'], ['/comentarios', 'message', 'Comentários'], ['/price', 'tag', 'Price'], ['/estudio', 'palette', 'Estúdio'], ['/videowall', 'wall', 'Video wall']]],
   ['COMERCIAL', [['/anunciantes', 'megaphone', 'Anunciantes'], ['/relatorios', 'chart', 'Relatórios']]],
   ['GESTÃO', [['/empresa', 'building', 'Empresa'], ['/downloads', 'download', 'Downloads']]],
 ];

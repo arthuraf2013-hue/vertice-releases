@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   APP_KINDS, APP_THEMES, TICKER_SPEEDS, normalizeApp, appDefaultSeconds, geocodeUrl, weatherUrl, summarizeWeather,
   youtubeId, safeHttpUrl, formatDateTime, sheetCsvUrl, sheetTable, qrContent, parsePrice,
+  APP_SOURCES, sampleComments, commentLink, blockPattern, blockedWordList,
 } from '@vertice/shared';
 import { AppView } from '@vertice/shared/apps';
 import { useSession } from '../session.jsx';
@@ -12,6 +13,8 @@ import {
   PageHeader, Button, Card, Loading, EmptyState, useToast, useConfirm, Modal, Input, Select, Toggle, Segmented, IconButton, Chip,
 } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
+import { siteBase } from '../data/site.js';
+import { NewAppFields, validateNewApp, useSourcePreview, CityField, OPEN_METEO_KEY } from './AppFields.jsx';
 
 const CATALOG = Object.entries(APP_KINDS).filter(([, d]) => !d.managed);
 const GROUPS = ['Todos', ...new Set(CATALOG.map(([, d]) => d.group))];
@@ -26,7 +29,7 @@ const FEEDS = [
  * app e entra nas playlists como qualquer imagem.
  */
 export function Apps() {
-  const { base, companyId, can, member } = useSession();
+  const { base, companyId, can, member, company } = useSession();
   const toast = useToast();
   const [confirm, confirmDialog] = useConfirm();
   const media = useCol(`${base}/media`, { where: [['type', '==', 'app']] });
@@ -59,6 +62,7 @@ export function Apps() {
       defaultDurationSec: Number(e.seconds) || null,
       updatedAt: api.NOW,
     };
+    if (e.kind === 'comments') return saveBoard(e, data);
     if (e.id) {
       await api.update(`${base}/media/${e.id}`, data);
       if (usage.has(e.id)) await rebuildManifests(companyId);
@@ -70,16 +74,49 @@ export function Apps() {
     setEdit(null);
   };
 
+  /** Mural de comentários: a mídia do app, o mural público e a moderação, no mesmo lote. */
+  const saveBoard = async (e, data) => {
+    const id = e.id || api.newId(`${base}/media`);
+    const c = e.config;
+    const words = blockedWordList(c.blockedWords);
+    const config = { ...c, boardId: id, link: commentLink(siteBase(), companyId, id) };
+    const ops = [
+      e.id
+        ? { op: 'update', path: `${base}/media/${id}`, data: { ...data, app: { kind: 'comments', config } } }
+        : { op: 'set', path: `${base}/media/${id}`, data: { ...data, app: { kind: 'comments', config }, sizeBytes: 0, createdAt: api.NOW, createdBy: member?.name || '' } },
+      {
+        op: 'set',
+        merge: true,
+        path: `${base}/commentBoards/${id}`,
+        data: {
+          title: (c.title || 'Comentários').slice(0, 60), question: (c.question || '').slice(0, 140), autoApprove: !!c.autoApprove,
+          companyName: company?.name || '', theme: c.theme || 'brand', updatedAt: api.NOW, ...(e.id ? {} : { open: true }),
+        },
+      },
+      { op: 'set', path: `${base}/commentSettings/${id}`, data: { autoApprove: !!c.autoApprove, words, blockPattern: blockPattern(words) } },
+    ];
+    await api.batch(ops);
+    if (usage.has(id)) await rebuildManifests(companyId);
+    toast(e.id ? 'Mural salvo.' : 'Mural criado. Coloque numa playlist e acompanhe os comentários em Comentários.');
+    setEdit(null);
+  };
+
   const remove = async (m) => {
     const used = usage.get(m.id);
     const ok = await confirm({
       title: `Excluir "${m.name}"?`,
-      message: used ? `Ele sai das playlists: ${[...used].join(', ')}.` : 'Ele não está em nenhuma playlist.',
+      message: `${used ? `Ele sai das playlists: ${[...used].join(', ')}.` : 'Ele não está em nenhuma playlist.'}${m.app?.kind === 'comments' ? ' Os comentários do mural também são apagados.' : ''}`,
       confirmLabel: 'Excluir',
       danger: true,
     });
     if (!ok) return;
     const ops = [{ op: 'delete', path: `${base}/media/${m.id}` }];
+    if (m.app?.kind === 'comments') {
+      // O mural sai junto: comentários, moderação e a página pública.
+      const comments = await api.getCol(`${base}/commentBoards/${m.id}/comments`);
+      for (const cm of comments) ops.push({ op: 'delete', path: `${base}/commentBoards/${m.id}/comments/${cm.id}` });
+      ops.push({ op: 'delete', path: `${base}/commentBoards/${m.id}` }, { op: 'delete', path: `${base}/commentSettings/${m.id}` });
+    }
     for (const p of playlists || []) {
       if ((p.items || []).some((it) => it.mediaId === m.id)) {
         ops.push({ op: 'update', path: `${base}/playlists/${p.id}`, data: { items: p.items.filter((it) => it.mediaId !== m.id), updatedAt: api.NOW } });
@@ -225,6 +262,7 @@ function AppEditor({ value, onChange, onClose, onSave }) {
               </div>
             </>
           )}
+          <NewAppFields kind={value.kind} c={c} set={set} />
           {'theme' in def.defaults && (
             <Select label="Cores" value={c.theme} onChange={(e) => set({ theme: e.target.value })} options={Object.entries(APP_THEMES).map(([k, t]) => ({ value: k, label: t.label }))} />
           )}
@@ -238,6 +276,8 @@ function AppEditor({ value, onChange, onClose, onSave }) {
 
 function validate(v) {
   const c = v.config;
+  const fresh = validateNewApp(v.kind, c);
+  if (fresh) return fresh;
   if (v.kind === 'weather' && (c.lat == null || c.lon == null)) return 'Escolha a cidade.';
   if (v.kind === 'rss' && !safeHttpUrl(c.url)) return 'Informe o endereço do feed (começando com https://).';
   if (v.kind === 'web' && !safeHttpUrl(c.url)) return 'Informe o endereço do site (começando com https://).';
@@ -301,38 +341,9 @@ function QrFields({ c, set }) {
 }
 
 function WeatherFields({ c, set }) {
-  const [q, setQ] = useState(c.city ? c.city.split(',')[0] : '');
-  const [res, setRes] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const search = async () => {
-    if (!q.trim()) return;
-    setBusy(true);
-    try {
-      const j = await (await fetch(geocodeUrl(q.trim()))).json();
-      setRes((j.results || []).map((r) => ({ label: [r.name, r.admin1, r.country_code === 'BR' ? null : r.country].filter(Boolean).join(', '), lat: r.latitude, lon: r.longitude })));
-    } catch {
-      setRes([]);
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <>
-      <div className="vx-field">
-        <span className="vx-label">Cidade</span>
-        <form className="vx-inline-search" onSubmit={(e) => { e.preventDefault(); search(); }}>
-          <input className="vx-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ex.: Recife" aria-label="Buscar cidade" />
-          <Button type="submit" icon="search" loading={busy}>Buscar</Button>
-        </form>
-        {c.city && <span className="vx-help"><Icon name="pin" /> {c.city}</span>}
-        {res && (
-          <div className="vx-chips">
-            {res.length ? res.map((r) => (
-              <button key={`${r.lat},${r.lon}`} type="button" className={`vx-chip-btn ${c.lat === r.lat && c.lon === r.lon ? 'is-on' : ''}`} onClick={() => set({ city: r.label, lat: r.lat, lon: r.lon })}>{r.label}</button>
-            )) : <span className="vx-faint">Nenhuma cidade encontrada (ou sem internet).</span>}
-          </div>
-        )}
-      </div>
+      <CityField c={c} set={set} />
       <Select label="Previsão" value={String(c.days)} onChange={(e) => set({ days: Number(e.target.value) })} options={[3, 4, 5].map((n) => ({ value: String(n), label: `${n} dias` }))} />
     </>
   );
@@ -348,7 +359,7 @@ export function AppPreview({ app, portraitDefault = false, imageSrc = null }) {
     if (app.kind !== 'weather' || c.lat == null) { setWeather(null); return undefined; }
     let alive = true;
     setStatus('loading');
-    fetch(weatherUrl(c.lat, c.lon, c.days || 4))
+    fetch(weatherUrl(c.lat, c.lon, c.days || 4, OPEN_METEO_KEY))
       .then((r) => r.json())
       .then((j) => { if (alive) { setWeather(summarizeWeather(j, c.days || 4)); setStatus(null); } })
       .catch(() => alive && setStatus('error'));
@@ -366,6 +377,9 @@ export function AppPreview({ app, portraitDefault = false, imageSrc = null }) {
   }, [csvUrl, c.header, c.rows]);
   // Notícias: o navegador do painel não lê feeds de outros sites; a TV lê. Na prévia, manchetes de exemplo.
   const feed = app.kind === 'rss' ? { source: c.source || 'Notícias', items: SAMPLE_NEWS } : null;
+  // Apps de dados: a fonte de verdade quando o navegador deixa ler; senão, exemplo.
+  const src = useSourcePreview(app.kind, c);
+  const shown = app.kind === 'comments' && !c.link ? { ...app, config: { ...c, link: `${siteBase()}comentar` } } : app;
   return (
     <div className="vx-app-preview">
       <div className="vx-section-head">
@@ -373,10 +387,12 @@ export function AppPreview({ app, portraitDefault = false, imageSrc = null }) {
         <Segmented value={portrait ? 'p' : 'l'} onChange={(v) => setPortrait(v === 'p')} options={[{ value: 'l', label: 'Deitada' }, { value: 'p', label: 'Em pé' }]} />
       </div>
       <div className={`vx-app-screen ${portrait ? 'is-portrait' : ''}`}>
-        <AppView app={app} weather={weather} feed={feed} table={table} imageSrc={imageSrc} status={status} />
+        <AppView app={shown} weather={weather} feed={feed} table={table} data={src.data} comments={app.kind === 'comments' ? sampleComments() : null} imageSrc={imageSrc} status={src.status || status} />
       </div>
       {app.kind === 'rss' && <p className="vx-help">Na prévia aparecem manchetes de exemplo. A TV mostra as do feed.</p>}
       {app.kind === 'sheet' && table && !table.real && <p className="vx-help">O navegador não deixou ler a planilha daqui; a prévia mostra uma tabela de exemplo. A TV lê a planilha direto.</p>}
+      {APP_SOURCES[app.kind] && src.data && !src.real && <p className="vx-help">Prévia com dados de exemplo: o navegador do painel não lê essa fonte direto. A TV lê.</p>}
+      {app.kind === 'comments' && <p className="vx-help">Na prévia aparecem comentários de exemplo. A TV mostra os que você aprovar.</p>}
     </div>
   );
 }

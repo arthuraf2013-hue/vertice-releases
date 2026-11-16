@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, isDemo } from '../data/api.js';
 import { Button, Input, Logo, Tabs } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
+import { siteBase } from '../data/site.js';
 import { useSession } from '../session.jsx';
 import { DEFAULT_TRIAL_DAYS } from '@vertice/shared';
 
@@ -106,8 +107,3 @@ export function Login() {
   );
 }
 
-/** Endereço do site comercial (termos e privacidade). No Hosting o painel fica em /app/ e o site na raiz. */
-function siteBase() {
-  if (typeof location !== 'undefined' && /^https?:/.test(location.protocol) && location.pathname.startsWith('/app')) return '/';
-  return import.meta.env.VITE_SITE_URL || 'https://vertice.vettasistemas.com.br/';
-}
