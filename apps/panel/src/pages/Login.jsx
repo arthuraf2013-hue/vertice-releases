@@ -56,14 +56,17 @@ export function Login() {
       <aside className="vx-login-art" data-theme="dark">
         <Logo size={44} dark />
         <div className="vx-login-hero">
-          <svg viewBox="0 0 340 300" className="vx-login-pyr" aria-hidden>
+          <svg viewBox="60 40 1042 550" className="vx-login-pyr" aria-hidden>
             <defs>
-              <linearGradient id="lb" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0d2f8f" /><stop offset="1" stop-color="#3b7bff" /></linearGradient>
-              <linearGradient id="lg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#c98a1c" /><stop offset="1" stop-color="#f7c862" /></linearGradient>
+              <linearGradient id="lb" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#0a49b8" /><stop offset=".6" stopColor="#1160d6" /><stop offset="1" stopColor="#1f78ee" /></linearGradient>
+              <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#c78a2c" /><stop offset=".5" stopColor="#f1b84b" /><stop offset="1" stopColor="#d99a35" /></linearGradient>
+              <linearGradient id="ls" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#1160d6" /><stop offset=".6" stopColor="#2a6fd8" /><stop offset="1" stopColor="#ffffff" /></linearGradient>
             </defs>
-            <polygon points="20,290 150,30 210,30 210,120 90,290" fill="url(#lb)" />
-            <polygon points="110,290 220,90 330,290 275,290 220,190 165,290" fill="url(#lg)" />
-            <polygon points="210,120 210,160 165,290 140,290" fill="#fff" fillOpacity=".85" />
+            <polygon points="70,580 625,50 690,122 290,580" fill="url(#lb)" />
+            <polygon points="625,50 690,122 625,190" fill="#08327f" fillOpacity=".8" />
+            <line x1="120" y1="515" x2="470" y2="190" stroke="#55b4ff" strokeWidth="5" strokeLinecap="round" opacity=".85" />
+            <polygon points="665,266 702,318 500,470 385,580" fill="url(#ls)" />
+            <polygon points="740,168 1092,580 940,580 660,262" fill="url(#lg)" />
           </svg>
           <div className="vx-overline" style={{ color: 'var(--vetta-gold)' }}>DIGITAL SIGNAGE</div>
           <h1>Sua comunicação em outro nível.</h1>

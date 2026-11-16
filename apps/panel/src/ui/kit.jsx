@@ -13,7 +13,7 @@ export function Logo({ size = 36, endorse = true, dark }) {
   const isDark = dark ?? theme === 'dark';
   return (
     <span className="vx-logo">
-      <img src={isDark ? simboloEscuro : simbolo} width={size} height={size} alt="" />
+      <img src={isDark ? simboloEscuro : simbolo} width={Math.round(size * 1.5)} height={Math.round(size * 0.8)} alt="" />
       <span>
         <Wordmark />
         {endorse && <span className="vx-logo-endorse">UMA SOLUÇÃO VETTA</span>}
