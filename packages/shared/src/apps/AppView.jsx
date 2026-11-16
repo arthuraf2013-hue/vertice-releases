@@ -4,6 +4,10 @@ import {
 } from '../apps.js';
 import { qrMatrix, qrPath, qrContent } from '../qr.js';
 import { studioFields, studioLines, studioColors } from '../studio.js';
+import {
+  Rain, Air, SunMoon, Matches, Standings, Headlines, Currency, Indicators, Holidays, Agenda, Countdown, Birthdays,
+  OnThisDay, WorldClock, Quote, Comments,
+} from './DataApps.jsx';
 
 /**
  * Desenho de um aplicativo na TV. O mesmo componente roda no player e na prévia do painel.
@@ -11,9 +15,10 @@ import { studioFields, studioLines, studioColors } from '../studio.js';
  * para caber: fica igual numa TV 4K, numa TV box HD e na miniatura do painel.
  *
  * @param {{ app: {kind:string, config:object, data?:object}, weather?: object|null, feed?: {source:string, items:object[]}|null,
- *           now?: number, status?: 'loading'|'error'|null }} props
+ *           data?: object|null, comments?: object[]|null, now?: number, status?: 'loading'|'error'|null }} props
+ *   data: o que a fonte do app devolveu (feeds.js); comments: aprovados do mural.
  */
-export function AppView({ app, weather = null, feed = null, table = null, imageSrc = null, now, status = null }) {
+export function AppView({ app, weather = null, feed = null, table = null, data = null, comments = null, imageSrc = null, now, status = null }) {
   if (!app || !APP_KINDS[app.kind]) return <div className="vxa vxa-empty" />;
   const c = app.config || {};
   if (app.kind === 'youtube') {
@@ -40,6 +45,22 @@ export function AppView({ app, weather = null, feed = null, table = null, imageS
           {app.kind === 'qr' && <Qr c={c} portrait={portrait} />}
           {app.kind === 'sheet' && <Sheet c={c} table={table} status={status} portrait={portrait} />}
           {app.kind === 'studio' && <Studio c={c} image={imageSrc || app.image?.url || null} portrait={portrait} />}
+          {app.kind === 'rain' && <Rain c={c} d={data} status={status} portrait={portrait} />}
+          {app.kind === 'air' && <Air c={c} d={data} status={status} portrait={portrait} />}
+          {app.kind === 'sunmoon' && <SunMoon c={c} d={data} status={status} portrait={portrait} />}
+          {app.kind === 'matches' && <Matches c={c} d={data} status={status} now={now} portrait={portrait} />}
+          {app.kind === 'standings' && <Standings c={c} d={data} status={status} />}
+          {app.kind === 'headlines' && <Headlines c={c} d={data} status={status} now={now} />}
+          {app.kind === 'currency' && <Currency c={c} d={data} status={status} portrait={portrait} />}
+          {app.kind === 'indicators' && <Indicators c={c} d={data} status={status} portrait={portrait} />}
+          {app.kind === 'holidays' && <Holidays c={c} d={data} status={status} />}
+          {app.kind === 'agenda' && <Agenda c={c} d={data} status={status} now={now} />}
+          {app.kind === 'onthisday' && <OnThisDay c={c} d={data} status={status} />}
+          {app.kind === 'countdown' && <Countdown c={c} now={now} />}
+          {app.kind === 'birthdays' && <Birthdays c={c} now={now} portrait={portrait} />}
+          {app.kind === 'worldclock' && <WorldClock c={c} now={now} portrait={portrait} />}
+          {app.kind === 'quote' && <Quote c={c} now={now} />}
+          {app.kind === 'comments' && <Comments c={c} comments={comments} now={now} portrait={portrait} />}
         </div>
       )}
     </Stage>

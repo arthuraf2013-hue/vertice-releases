@@ -24,7 +24,7 @@ export const APP_KINDS = {
   weather: {
     label: 'Clima',
     icon: 'sun',
-    group: 'Informação',
+    group: 'Tempo',
     desc: 'Temperatura agora e previsão dos próximos dias, por cidade.',
     defaultSec: 12,
     defaults: { city: '', lat: null, lon: null, days: 4, theme: 'night' },
@@ -32,10 +32,141 @@ export const APP_KINDS = {
   rss: {
     label: 'Notícias',
     icon: 'news',
-    group: 'Informação',
+    group: 'Notícias',
     desc: 'Manchetes de um feed RSS (portal de notícias, blog, prefeitura).',
     defaultSec: 20,
     defaults: { url: '', source: '', count: 5, theme: 'night' },
+  },
+  rain: {
+    label: 'Chuva nas próximas horas',
+    icon: 'rain',
+    group: 'Tempo',
+    desc: 'Chance de chuva hora a hora e o aviso "leve o guarda-chuva".',
+    defaultSec: 12,
+    defaults: { city: '', lat: null, lon: null, hours: 12, theme: 'night' },
+  },
+  air: {
+    label: 'Qualidade do ar e UV',
+    icon: 'wind',
+    group: 'Tempo',
+    desc: 'Índice de qualidade do ar e radiação UV agora, com a dica do que fazer.',
+    defaultSec: 12,
+    defaults: { city: '', lat: null, lon: null, theme: 'night' },
+  },
+  sunmoon: {
+    label: 'Sol e lua',
+    icon: 'moon',
+    group: 'Tempo',
+    desc: 'Nascer e pôr do sol, horas de luz e a fase da lua.',
+    defaultSec: 10,
+    defaults: { city: '', lat: null, lon: null, theme: 'night' },
+  },
+  matches: {
+    label: 'Jogos de futebol',
+    icon: 'ball',
+    group: 'Esportes',
+    desc: 'Últimos resultados e próximos jogos de um campeonato, ou só do seu time.',
+    defaultSec: 15,
+    defaults: { leagueId: 4351, team: '', results: 3, upcoming: 4, apiKey: '', theme: 'green' },
+  },
+  standings: {
+    label: 'Tabela do campeonato',
+    icon: 'trophy',
+    group: 'Esportes',
+    desc: 'Classificação com pontos, jogos e saldo. Destaca o seu time.',
+    defaultSec: 15,
+    defaults: { leagueId: 4351, team: '', rows: 10, season: '', apiKey: '', theme: 'green' },
+  },
+  headlines: {
+    label: 'Manchetes em rotação',
+    icon: 'news',
+    group: 'Notícias',
+    desc: 'Uma manchete por vez, em letras grandes, alternando entre até 4 portais.',
+    defaultSec: 24,
+    defaults: { feeds: [{ label: 'Agência Brasil', url: 'https://agenciabrasil.ebc.com.br/feed/ultimasnoticias/feed.xml' }], everySec: 8, theme: 'night' },
+  },
+  currency: {
+    label: 'Cotações',
+    icon: 'coin',
+    group: 'Economia',
+    desc: 'Dólar, euro, bitcoin e outras moedas em reais, com a variação do dia.',
+    defaultSec: 12,
+    defaults: { codes: ['USD', 'EUR', 'BTC'], theme: 'night' },
+  },
+  indicators: {
+    label: 'Indicadores econômicos',
+    icon: 'chart',
+    group: 'Economia',
+    desc: 'Selic, IPCA, CDI e dólar PTAX, direto do Banco Central.',
+    defaultSec: 12,
+    defaults: { items: ['selic', 'ipca12', 'cdi'], theme: 'brand' },
+  },
+  holidays: {
+    label: 'Próximos feriados',
+    icon: 'calendar',
+    group: 'Calendário',
+    desc: 'Feriados nacionais e as datas da sua cidade ou loja, com quantos dias faltam.',
+    defaultSec: 12,
+    defaults: { extra: '', count: 5, theme: 'brand' },
+  },
+  countdown: {
+    label: 'Contagem regressiva',
+    icon: 'hourglass',
+    group: 'Calendário',
+    desc: 'Dias, horas e minutos até uma data: inauguração, Black Friday, Natal.',
+    defaultSec: 10,
+    defaults: { title: 'Faltam', target: '', doneText: 'Chegou o dia!', showSeconds: false, theme: 'wine' },
+  },
+  birthdays: {
+    label: 'Aniversariantes',
+    icon: 'gift',
+    group: 'Calendário',
+    desc: 'Os aniversariantes do mês (equipe, clientes, alunos). Hoje fica em destaque.',
+    defaultSec: 12,
+    defaults: { title: 'Aniversariantes do mês', list: '', scope: 'month', theme: 'wine' },
+  },
+  onthisday: {
+    label: 'Hoje na história',
+    icon: 'book',
+    group: 'Calendário',
+    desc: 'Fatos que aconteceram nesta data, da Wikipédia em português.',
+    defaultSec: 15,
+    defaults: { count: 3, theme: 'light' },
+  },
+  agenda: {
+    label: 'Agenda de eventos',
+    icon: 'calendar',
+    group: 'Calendário',
+    desc: 'Próximos eventos de um calendário (Google Agenda, Outlook ou .ics da prefeitura).',
+    defaultSec: 15,
+    defaults: { url: '', title: 'Próximos eventos', count: 5, theme: 'night' },
+  },
+  worldclock: {
+    label: 'Relógio mundial',
+    icon: 'globe',
+    group: 'Informação',
+    desc: 'A hora em várias cidades do mundo, lado a lado.',
+    defaultSec: 10,
+    defaults: { zones: ['America/Sao_Paulo', 'America/New_York', 'Europe/Lisbon', 'Asia/Tokyo'], theme: 'night' },
+  },
+  quote: {
+    label: 'Frase do dia',
+    icon: 'quote',
+    group: 'Informação',
+    desc: 'Uma frase por dia, das suas ou de ditados populares.',
+    defaultSec: 10,
+    defaults: { title: 'Frase do dia', list: '', theme: 'light' },
+  },
+  comments: {
+    label: 'Mural de comentários',
+    icon: 'message',
+    group: 'Interação',
+    desc: 'O público comenta pelo QR Code ou pelo link e as mensagens aprovadas aparecem na tela.',
+    defaultSec: 20,
+    defaults: {
+      title: 'Deixe seu recado', question: 'O que você achou do nosso atendimento?', showQr: true, rotateSec: 8, maxShown: 3,
+      autoApprove: false, blockedWords: '', boardId: '', link: '', theme: 'brand',
+    },
   },
   web: {
     label: 'Site',
@@ -180,7 +311,7 @@ export function parseFeed(xml = '', max = 10) {
 
 /* ---------------- Clima (Open-Meteo, sem chave) ---------------- */
 
-export function weatherUrl(lat, lon, days = 4) {
+export function weatherUrl(lat, lon, days = 4, apikey = '') {
   const q = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
@@ -189,7 +320,9 @@ export function weatherUrl(lat, lon, days = 4) {
     timezone: 'auto',
     forecast_days: String(Math.min(7, Math.max(1, days + 1))),
   });
-  return `https://api.open-meteo.com/v1/forecast?${q}`;
+  // Uso comercial do Open-Meteo: com chave, servidor "customer-".
+  if (apikey) q.set('apikey', apikey);
+  return `https://${apikey ? 'customer-' : ''}api.open-meteo.com/v1/forecast?${q}`;
 }
 
 export function geocodeUrl(name) {

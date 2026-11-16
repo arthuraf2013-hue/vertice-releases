@@ -10,7 +10,8 @@
     "./styles/fonts.css": "./src/styles/fonts.css",
     "./brand/*": "./src/brand/*",
     "./apps": "./src/apps/AppView.jsx",
-    "./apps.css": "./src/apps/apps.css"
+    "./apps.css": "./src/apps/apps.css",
+    "./comments": "./src/comments.js"
   },
   "scripts": {
     "test": "vitest run"
