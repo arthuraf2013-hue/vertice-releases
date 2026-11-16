@@ -358,3 +358,121 @@ test('alertas: admin configura e pede teste; editor não', async () => {
   await assertSucceeds(setDoc(doc(as('owner'), `companies/${CID}/alertTests/t1`), { at: serverTimestamp(), by: 'owner' }));
   await assertFails(setDoc(doc(as('editor'), `companies/${CID}/alertTests/t2`), { at: serverTimestamp(), by: 'editor' }));
 });
+
+/* ---------- Mural de comentários ---------- */
+
+const BOARD = `companies/${CID}/commentBoards/mural1`;
+
+/** Envio como a página pública faz: contador de envios + comentário, no mesmo lote. */
+async function sendComment(uid, { id, status = 'pending', text = 'Muito bom!', name = 'Ana', reset } = {}) {
+  const db = as(uid, { firebase: { sign_in_provider: 'anonymous' } });
+  const limRef = doc(db, `commentLimits/${uid}`);
+  const prev = (await getDoc(limRef)).data();
+  const b = writeBatch(db);
+  const startNew = reset ?? !prev;
+  b.set(limRef, {
+    windowStart: startNew ? serverTimestamp() : prev.windowStart,
+    count: startNew ? 1 : prev.count + 1,
+    lastAt: serverTimestamp(),
+    lastId: id,
+  });
+  b.set(doc(db, `${BOARD}/comments/${id}`), { name, text, status, createdAt: serverTimestamp(), uid });
+  return b.commit();
+}
+
+async function seedBoard({ autoApprove = false, open = true, blockPattern = 'a^' } = {}) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, BOARD), { title: 'Recados', question: 'Gostou?', open, autoApprove, companyName: 'Acme', theme: 'brand' });
+    await setDoc(doc(db, `companies/${CID}/commentSettings/mural1`), { autoApprove, blockPattern, words: [] });
+  });
+}
+
+test('mural: editor cria o mural; qualquer um lê o título; leitor não mexe', async () => {
+  await seedCompany();
+  const board = { title: 'Recados', question: 'O que achou?', open: true, autoApprove: false, companyName: 'Acme', theme: 'brand', updatedAt: serverTimestamp() };
+  await assertFails(setDoc(doc(as('viewer'), BOARD), board));
+  await assertSucceeds(setDoc(doc(as('editor'), BOARD), board));
+  await assertSucceeds(setDoc(doc(as('editor'), `companies/${CID}/commentSettings/mural1`), { autoApprove: false, blockPattern: 'a^', words: [] }));
+  await assertSucceeds(getDoc(doc(anon(), BOARD)));
+  // Configuração de moderação (palavras bloqueadas) não é pública.
+  await assertFails(getDoc(doc(anon(), `companies/${CID}/commentSettings/mural1`)));
+  await assertFails(getDoc(doc(as('x'), `companies/${CID}/commentSettings/mural1`)));
+  await assertFails(setDoc(doc(as('editor'), BOARD), { ...board, title: 'x'.repeat(61) }));
+});
+
+test('mural: visitante envia comentário; vai como "aguardando" e não lê o que outros mandaram', async () => {
+  await seedCompany();
+  await seedBoard();
+  await assertSucceeds(sendComment('v1', { id: 'v1-1' }));
+  // Sem login não envia; aprovado direto não (aprovação automática desligada).
+  await assertFails(setDoc(doc(anon(), `${BOARD}/comments/x`), { name: '', text: 'oi oi', status: 'pending', createdAt: serverTimestamp(), uid: 'x' }));
+  await assertFails(sendComment('v2', { id: 'v2-1', status: 'approved' }));
+  // Sem o contador no mesmo lote, não entra.
+  await assertFails(setDoc(doc(as('v3'), `${BOARD}/comments/v3-1`), { name: '', text: 'oi oi', status: 'pending', createdAt: serverTimestamp(), uid: 'v3' }));
+  // Campos e tamanhos.
+  await assertFails(sendComment('v4', { id: 'v4-1', text: 'x'.repeat(201) }));
+  await assertFails(sendComment('v5', { id: 'v5-1', name: 'n'.repeat(31) }));
+  // Visitante não lê comentários (nem o próprio).
+  await assertFails(getDoc(doc(as('v1'), `${BOARD}/comments/v1-1`)));
+  await assertFails(getDocs(collection(anon(), `${BOARD}/comments`)));
+});
+
+test('mural: até 3 envios a cada 10 minutos por aparelho; um comentário por lote', async () => {
+  await seedCompany();
+  await seedBoard();
+  await assertSucceeds(sendComment('v1', { id: 'a1' }));
+  await assertSucceeds(sendComment('v1', { id: 'a2' }));
+  await assertSucceeds(sendComment('v1', { id: 'a3' }));
+  await assertFails(sendComment('v1', { id: 'a4' }));
+  // Zerar a contagem antes do tempo não passa.
+  await assertFails(sendComment('v1', { id: 'a5', reset: true }));
+  // Janela vencida (10 min atrás): começa outra.
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'commentLimits/v1'), { windowStart: Timestamp.fromMillis(Date.now() - 11 * MIN) }));
+  await assertFails(sendComment('v1', { id: 'a6', reset: false }));
+  await assertSucceeds(sendComment('v1', { id: 'a7', reset: true }));
+  // Dois comentários com um só contador: recusado.
+  const db = as('v2');
+  const b = writeBatch(db);
+  b.set(doc(db, 'commentLimits/v2'), { windowStart: serverTimestamp(), count: 1, lastAt: serverTimestamp(), lastId: 'b1' });
+  b.set(doc(db, `${BOARD}/comments/b1`), { name: '', text: 'um', status: 'pending', createdAt: serverTimestamp(), uid: 'v2' });
+  b.set(doc(db, `${BOARD}/comments/b2`), { name: '', text: 'dois', status: 'pending', createdAt: serverTimestamp(), uid: 'v2' });
+  await assertFails(b.commit());
+  // O contador é só do próprio usuário.
+  await assertFails(setDoc(doc(as('v3'), 'commentLimits/v1'), { windowStart: serverTimestamp(), count: 1, lastAt: serverTimestamp(), lastId: 'zz' }));
+});
+
+test('mural: aprovação automática respeita as palavras bloqueadas; mural fechado e licença vencida recusam', async () => {
+  await seedCompany();
+  await seedBoard({ autoApprove: true, blockPattern: '(?s).*(palavrão|feio).*' });
+  await assertSucceeds(sendComment('v1', { id: 'c1', status: 'approved', text: 'Adorei o pão' }));
+  await assertFails(sendComment('v2', { id: 'c2', status: 'approved', text: 'Que atendimento FEIO' }));
+  await assertSucceeds(sendComment('v2', { id: 'c3', status: 'pending', text: 'Que atendimento FEIO' }));
+  await assertFails(sendComment('v3', { id: 'c4', status: 'approved', name: 'Feio', text: 'oi oi' }));
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), BOARD), { open: false }));
+  await assertFails(sendComment('v4', { id: 'c5' }));
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), BOARD), { open: true }));
+  await setCompany({ status: 'suspended' });
+  await assertFails(sendComment('v5', { id: 'c6' }));
+});
+
+test('mural: equipe modera; a TV lê só os aprovados', async () => {
+  await seedCompany();
+  await seedBoard();
+  await pairScreen('MM2MM3', 'tv-1', 'scr1');
+  await sendComment('v1', { id: 'p1', text: 'Aguardando' });
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `${BOARD}/comments/ok1`), { name: 'Bia', text: 'Aprovado', status: 'approved', createdAt: Timestamp.now(), uid: 'v9' }));
+  const tv = as('tv-1');
+  await assertSucceeds(getDocs(query(collection(tv, `${BOARD}/comments`), where('status', '==', 'approved'))));
+  await assertFails(getDocs(collection(tv, `${BOARD}/comments`)));
+  await assertFails(getDoc(doc(tv, `${BOARD}/comments/p1`)));
+  // Leitor vê tudo, mas não modera; editor aprova, oculta e apaga.
+  await assertSucceeds(getDocs(collection(as('viewer'), `${BOARD}/comments`)));
+  await assertFails(updateDoc(doc(as('viewer'), `${BOARD}/comments/p1`), { status: 'approved', moderatedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(as('editor'), `${BOARD}/comments/p1`), { status: 'approved', moderatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(as('editor'), `${BOARD}/comments/p1`), { text: 'editado pela loja' }));
+  await assertSucceeds(updateDoc(doc(as('editor'), `${BOARD}/comments/p1`), { status: 'hidden', moderatedAt: serverTimestamp() }));
+  await assertSucceeds(deleteDoc(doc(as('editor'), `${BOARD}/comments/p1`)));
+  // Outra empresa não vê nada.
+  await assertFails(getDocs(collection(as('x'), `${BOARD}/comments`)));
+});

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Deixe seu comentário</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body class="cm">
+  <main class="cm-main" aria-live="polite">
+    <p class="cm-store" data-store>Carregando…</p>
+
+    <section class="cm-card" data-view="form" hidden>
+      <h1 class="cm-q" data-question></h1>
+      <form class="cm-form" novalidate>
+        <label class="cm-field">
+          <span>Seu comentário</span>
+          <textarea name="text" rows="5" maxlength="200" required placeholder="Escreva aqui"></textarea>
+          <small class="cm-count" data-count>0 de 200</small>
+        </label>
+        <label class="cm-field">
+          <span>Seu nome <em>(opcional)</em></span>
+          <input name="name" maxlength="30" autocomplete="given-name" placeholder="Ex.: Mariana" />
+          <small>Na tela aparece só o primeiro nome.</small>
+        </label>
+        <!-- Campo invisível: pessoas não preenchem, robôs sim. -->
+        <label class="cm-trap" aria-hidden="true">Site <input name="website" tabindex="-1" autocomplete="off" /></label>
+        <p class="cm-error" data-error hidden></p>
+        <button class="cm-send" type="submit">Enviar comentário</button>
+        <p class="cm-legal">
+          Seu comentário pode aparecer na TV da loja. Guardamos só o nome e o texto, para exibição e moderação.
+          Para pedir a exclusão, fale com a loja. <a href="/privacidade">Política de privacidade</a>
+        </p>
+      </form>
+    </section>
+
+    <section class="cm-card cm-done" data-view="done" hidden>
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M7.5 12.5l3 3 6-6.5" /></svg>
+      <h1>Comentário enviado</h1>
+      <p data-done-text>A equipe da loja vai ler e, se aprovar, ele aparece na TV.</p>
+      <button class="cm-again" type="button" data-again>Enviar outro</button>
+    </section>
+
+    <section class="cm-card cm-done" data-view="closed" hidden>
+      <h1>Mural fechado</h1>
+      <p data-closed-text>Este mural não está recebendo comentários agora.</p>
+    </section>
+  </main>
+  <footer class="cm-foot">Mural do <a href="/">Vértice</a></footer>
+  <script type="module" src="/src/comentar.js"></script>
+</body>
+</html>

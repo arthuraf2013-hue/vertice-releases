@@ -296,6 +296,57 @@ service cloud.firestore {
         }
       }
 
+      // ---------- Mural de comentários (app "comments"; id do mural = id da mídia do app) ----------
+      // Mural: título e pergunta. Leitura pública (a página de envio, aberta pelo QR, mostra).
+      match /commentBoards/{bid} {
+        allow get: if true;
+        allow list: if isMember(cid);
+        allow create, update: if hasRole(cid, 'editor')
+          && request.resource.data.keys().hasOnly(['title', 'question', 'open', 'autoApprove', 'companyName', 'theme', 'updatedAt'])
+          && request.resource.data.title is string && request.resource.data.title.size() <= 60
+          && request.resource.data.question is string && request.resource.data.question.size() <= 140
+          && request.resource.data.open is bool;
+        allow delete: if hasRole(cid, 'editor');
+
+        // Comentários. Quem envia é um usuário anônimo da página pública; nunca lê o que mandou.
+        // A TV só lê os aprovados; a equipe lê todos e modera.
+        match /comments/{commentId} {
+          function boardData() { return get(/databases/$(database)/documents/companies/$(cid)/commentBoards/$(bid)).data; }
+          function settings() { return get(/databases/$(database)/documents/companies/$(cid)/commentSettings/$(bid)).data; }
+          function limitAfter() { return getAfter(/databases/$(database)/documents/commentLimits/$(uid())).data; }
+          function newComment() {
+            let d = request.resource.data;
+            let pattern = settings().get('blockPattern', 'a^');
+            return signedIn()
+              && d.keys().hasOnly(['name', 'text', 'status', 'createdAt', 'uid'])
+              && d.uid == uid()
+              && d.createdAt == request.time
+              && d.text is string && d.text.size() >= 2 && d.text.size() <= 200
+              && d.name is string && d.name.size() <= 30
+              && boardData().get('open', false) == true
+              // Limite por aparelho: o contador (commentLimits) muda no mesmo lote e aponta para este comentário.
+              && limitAfter().lastAt == request.time
+              && limitAfter().lastId == commentId
+              // Aprovado direto só com aprovação automática ligada e sem palavra bloqueada.
+              && (d.status == 'pending'
+                  || (d.status == 'approved' && settings().get('autoApprove', false) == true
+                      && !d.text.lower().matches(pattern) && !d.name.lower().matches(pattern)))
+              && licensed(cid);
+          }
+          allow read: if isMember(cid) || (isAnyScreen(cid) && resource.data.status == 'approved' && licensed(cid));
+          allow create: if newComment();
+          allow update: if hasRole(cid, 'editor')
+            && changesOnly(['status', 'moderatedAt'])
+            && request.resource.data.status in ['pending', 'approved', 'hidden'];
+          allow delete: if hasRole(cid, 'editor');
+        }
+      }
+      // Moderação do mural: aprovação automática e palavras bloqueadas (só a equipe vê).
+      match /commentSettings/{bid} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
       match /integrations/{iid} {
         allow read: if isMember(cid) || (isIntegration(cid) && iid == uid());
         allow create, delete: if hasRole(cid, 'admin');
@@ -321,6 +372,28 @@ service cloud.firestore {
         allow update: if isIntegration(cid) && resource.data.integrationUid == uid() && validOrder();
         allow delete: if (isIntegration(cid) && resource.data.integrationUid == uid()) || hasRole(cid, 'admin');
       }
+    }
+
+    // Limite de envios do mural de comentários, por usuário anônimo: até 3 a cada 10 minutos.
+    // Cada envio troca lastId (o id do comentário) e lastAt (hora do servidor) no mesmo lote.
+    match /commentLimits/{limitUid} {
+      function okLimit() {
+        let d = request.resource.data;
+        return signedIn() && uid() == limitUid
+          && d.keys().hasOnly(['windowStart', 'count', 'lastAt', 'lastId'])
+          && d.lastAt == request.time
+          && d.lastId is string && d.lastId.size() > 0 && d.lastId.size() <= 80;
+      }
+      allow get: if signedIn() && uid() == limitUid;
+      allow create: if okLimit() && request.resource.data.windowStart == request.time && request.resource.data.count == 1;
+      allow update: if okLimit() && request.resource.data.lastId != resource.data.lastId && (
+          (resource.data.windowStart + duration.value(10, 'm') > request.time
+            && request.resource.data.windowStart == resource.data.windowStart
+            && request.resource.data.count == resource.data.count + 1
+            && request.resource.data.count <= 3)
+          || (resource.data.windowStart + duration.value(10, 'm') <= request.time
+            && request.resource.data.windowStart == request.time
+            && request.resource.data.count == 1));
     }
 
     // Console da Vetta: situação de todas as telas (consulta de grupo).

@@ -1,0 +1,36 @@
+/* Página de comentários: aberta no celular pelo QR Code da TV. Sóbria, com o nome da loja em destaque. */
+@import '@vertice/shared/styles/fonts.css';
+
+:root {
+  --night: #141b26; --gold: #d9a84e; --paper: #f4f6f9; --card: #fff; --line: #dde3ea; --ink: #141b26; --muted: #4b5a70; --bad: #b3261e;
+  --display: 'Sora', 'Manrope', system-ui, sans-serif; --sans: 'Manrope', system-ui, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body.cm { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; background: var(--night); color: var(--ink); font: 500 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+.cm-main { flex: 1; width: 100%; max-width: 520px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 18px 24px; display: flex; flex-direction: column; gap: 18px; }
+.cm-store { margin: 0; color: var(--gold); font: 700 15px/1.3 var(--display); letter-spacing: .01em; }
+.cm-card { background: var(--card); border-radius: 22px; padding: 26px 22px; display: flex; flex-direction: column; gap: 20px; }
+.cm-q { margin: 0; font: 700 26px/1.2 var(--display); letter-spacing: -.02em; }
+.cm-form { display: flex; flex-direction: column; gap: 18px; }
+.cm-field { display: flex; flex-direction: column; gap: 6px; }
+.cm-field > span { font-weight: 700; font-size: 15px; }
+.cm-field em { font-style: normal; font-weight: 500; color: var(--muted); }
+.cm-field small { color: var(--muted); font-size: 13px; }
+.cm-count { align-self: flex-end; font-variant-numeric: tabular-nums; }
+textarea, input { width: 100%; font: 500 17px/1.45 var(--sans); color: var(--ink); background: var(--paper); border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; resize: vertical; }
+textarea:focus, input:focus { outline: none; border-color: var(--night); background: #fff; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.cm-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.cm-send, .cm-again { height: 54px; border: 0; border-radius: 14px; background: var(--gold); color: var(--night); font: 700 17px/1 var(--display); cursor: pointer; }
+.cm-send[disabled] { opacity: .6; cursor: progress; }
+.cm-again { background: var(--paper); border: 1.5px solid var(--line); padding: 0 22px; align-self: stretch; }
+.cm-error { margin: 0; color: var(--bad); font-weight: 700; font-size: 15px; }
+.cm-legal { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.cm-legal a { color: var(--ink); }
+.cm-done { align-items: flex-start; }
+.cm-done svg { color: #11724f; }
+.cm-done h1 { margin: 0; font: 700 26px/1.2 var(--display); }
+.cm-done p { margin: 0; color: var(--muted); }
+.cm-foot { padding: 18px; text-align: center; color: rgba(238,242,247,.6); font-size: 13px; }
+.cm-foot a { color: rgba(238,242,247,.85); }
