@@ -30,7 +30,7 @@ if (params.get('poster')) items.unshift({ key: 'p:x', mediaId: 'm9', name: 'Comb
 
 if (params.get('az')) items[0] = { ...items[0], adjust: { zoom: Number(params.get('az')), offsetX: Number(params.get('ax') || 0), offsetY: Number(params.get('ay') || 0) } };
 
-// &app=price|clock|ticker|weather|rss: a TV mostra só esse aplicativo (conferir o visual dos apps).
+// &app=price|clock|ticker|weather|rss|rain|air|...|comments: a TV mostra só esse aplicativo (conferir o visual dos apps).
 const DEMO_APPS = {
   price: { kind: 'price', config: { listId: 'pl1' }, data: priceListForTv({ title: 'Pães e salgados', subtitle: 'Saindo do forno agora', footer: 'Aceitamos Pix, cartão e vale-refeição', layout: params.get('layout') || 'list', items: [
     { name: 'Pão francês', unit: 'kg', price: 14.9, promoPrice: 12.9 }, { name: 'Pão de queijo', unit: 'kg', price: 59.9 }, { name: 'Pão integral', unit: 'un', price: 11.5 },
@@ -42,6 +42,22 @@ const DEMO_APPS = {
   weather: { kind: 'weather', config: { city: 'Recife, Pernambuco', lat: -8.05, lon: -34.88, days: 4, theme: 'brand' } },
   rss: { kind: 'rss', config: { url: 'https://g1.globo.com/rss/g1/pernambuco/', source: 'g1 Pernambuco', count: 5, theme: 'night' } },
   qr: { kind: 'qr', config: { mode: 'wifi', ssid: 'BoaMassa-Clientes', password: 'paoquentinho', title: 'Wi-Fi grátis para clientes', subtitle: 'Aponte a câmera do celular e conecte', theme: 'light' } },
+  rain: { kind: 'rain', config: { city: 'Recife, Pernambuco', lat: -8.05, lon: -34.88, hours: 12, theme: 'night' } },
+  air: { kind: 'air', config: { city: 'Recife, Pernambuco', lat: -8.05, lon: -34.88, theme: 'night' } },
+  sunmoon: { kind: 'sunmoon', config: { city: 'Recife, Pernambuco', lat: -8.05, lon: -34.88, theme: 'night' } },
+  matches: { kind: 'matches', config: { leagueId: 4351, team: '', results: 2, upcoming: 3, theme: 'green' } },
+  standings: { kind: 'standings', config: { leagueId: 4351, team: 'Sport', rows: 8, theme: 'green' } },
+  headlines: { kind: 'headlines', config: { feeds: [{ label: 'Agência Brasil', url: 'https://agenciabrasil.ebc.com.br/feed/ultimasnoticias/feed.xml' }], everySec: 8, theme: 'night' } },
+  currency: { kind: 'currency', config: { codes: ['USD', 'EUR', 'BTC'], theme: 'night' } },
+  indicators: { kind: 'indicators', config: { items: ['selic', 'ipca12', 'cdi'], theme: 'brand' } },
+  holidays: { kind: 'holidays', config: { extra: '08/12 Nossa Senhora da Conceição (Recife)', count: 5, theme: 'brand' } },
+  countdown: { kind: 'countdown', config: { title: 'Black Friday começa em', target: `${new Date().getFullYear()}-11-27T08:00`, theme: 'wine' } },
+  birthdays: { kind: 'birthdays', config: { title: 'Aniversariantes do mês', list: `Ana Souza ${new Date().getDate()}/${new Date().getMonth() + 1}\nBruno Lima 03/${new Date().getMonth() + 1}\nCarla Mendes 21/${new Date().getMonth() + 1}\nDiego Alves 28/${new Date().getMonth() + 1}`, theme: 'wine' } },
+  onthisday: { kind: 'onthisday', config: { count: 3, theme: 'light' } },
+  agenda: { kind: 'agenda', config: { url: 'https://calendar.google.com/calendar/ical/x/public/basic.ics', title: 'Próximos eventos', theme: 'night' } },
+  worldclock: { kind: 'worldclock', config: { zones: ['America/Sao_Paulo', 'America/New_York', 'Europe/Lisbon', 'Asia/Tokyo'], theme: 'night' } },
+  quote: { kind: 'quote', config: { title: 'Frase do dia', list: '', theme: 'light' } },
+  comments: { kind: 'comments', config: { title: 'Deixe seu recado', question: 'O que você achou do nosso atendimento?', showQr: true, rotateSec: 8, maxShown: 3, boardId: 'demo', link: 'https://vertice.vettasistemas.com.br/comentar?e=demo&m=demo', theme: 'brand' } },
   sheet: { kind: 'sheet', config: { url: 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit#gid=0', title: 'Escala da semana', rows: 8, header: true, theme: 'night' } },
 };
 // Peças do Estúdio (&app=studio&tpl=offer|notice|menu|welcome|event), com uma "foto" desenhada.

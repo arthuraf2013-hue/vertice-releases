@@ -1,9 +1,15 @@
 // Dados de fora que alguns aplicativos precisam (clima e notícias), com cache no aparelho:
 // sem internet, a TV mostra a última previsão/manchetes que conseguiu.
 import { useEffect, useState } from 'react';
-import { weatherUrl, summarizeWeather, parseFeed, safeHttpUrl, sheetCsvUrl, sheetTable } from '@vertice/shared';
+import {
+  weatherUrl, summarizeWeather, parseFeed, safeHttpUrl, sheetCsvUrl, sheetTable, APP_SOURCES, sourceCacheKey,
+} from '@vertice/shared';
 import { local } from './platform.js';
 import { host } from './host.js';
+import { watchComments } from './comments.js';
+
+// Open-Meteo pede chave para uso comercial (servidor "customer-"). Vem do PLAYER_ENV na publicação.
+const OPEN_METEO_KEY = import.meta.env.VITE_OPEN_METEO_KEY || '';
 
 const WEATHER_TTL = 30 * 60_000;
 const FEED_TTL = 15 * 60_000;
@@ -26,7 +32,7 @@ export function loadWeather(cfg) {
   if (cfg.lat == null || cfg.lon == null) return Promise.reject(new Error('cidade não escolhida'));
   const days = Math.min(6, Math.max(1, Number(cfg.days) || 4));
   return cached(`app:w:${cfg.lat},${cfg.lon},${days}`, WEATHER_TTL, async () => {
-    const res = await fetch(weatherUrl(cfg.lat, cfg.lon, days));
+    const res = await fetch(weatherUrl(cfg.lat, cfg.lon, days, OPEN_METEO_KEY));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return summarizeWeather(await res.json(), days);
   });
@@ -44,14 +50,44 @@ export function loadSheet(cfg) {
   return cached(`app:sheet:${url}:${cfg.rows}:${cfg.header}`, SHEET_TTL, async () => sheetTable(await host.fetchText(url), { header: cfg.header !== false, rows: cfg.rows }));
 }
 
-/** { weather, feed, table, status } para o aplicativo que está na tela. */
+/**
+ * Apps com fonte própria (feeds.js): baixa todos os endereços, aceita falha parcial (um portal fora
+ * do ar não derruba os outros) e guarda o resultado para mostrar sem internet.
+ */
+const isDemo = () => typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo');
+
+export function loadSource(kind, cfg) {
+  const src = APP_SOURCES[kind];
+  // Demonstração (?demo=play&app=...): dados de exemplo, sem internet.
+  if (isDemo()) return Promise.resolve(src.sample(cfg, Date.now()));
+  const urls = src.urls(cfg, { apikey: OPEN_METEO_KEY, now: new Date() });
+  if (!urls.length) return Promise.reject(new Error('configuração incompleta'));
+  return cached(sourceCacheKey(kind, urls), src.ttl, async () => {
+    const res = await Promise.allSettled(urls.map((u) => host.fetchText(u)));
+    if (res.every((r) => r.status === 'rejected')) throw res[0].reason;
+    return src.parse(res.map((r) => (r.status === 'fulfilled' ? r.value : null)), cfg, Date.now());
+  });
+}
+
+/** { weather, feed, table, data, comments, status } para o aplicativo que está na tela. */
 export function useAppData(app) {
-  const [s, setS] = useState({ weather: null, feed: null, table: null, status: 'loading' });
+  const [s, setS] = useState({ weather: null, feed: null, table: null, data: null, comments: null, status: 'loading' });
   const kind = app?.kind;
   const key = JSON.stringify(app?.config || {});
   useEffect(() => {
     let alive = true;
     const done = (patch) => alive && setS((x) => ({ ...x, ...patch }));
+    if (kind === 'comments') {
+      const off = watchComments(app.config.boardId, (comments) => done({ comments, status: null }));
+      return () => { alive = false; off(); };
+    }
+    if (APP_SOURCES[kind]) {
+      const load = () => loadSource(kind, app.config).then((data) => done({ data, status: null }), () => done({ status: 'error' }));
+      load();
+      // App que fica muito tempo na tela (zona fixa): atualiza no ritmo da fonte.
+      const t = setInterval(load, Math.max(60_000, APP_SOURCES[kind].ttl));
+      return () => { alive = false; clearInterval(t); };
+    }
     if (kind === 'weather') loadWeather(app.config).then((weather) => done({ weather, status: null }), () => done({ status: 'error' }));
     else if (kind === 'rss') loadFeed(app.config).then((feed) => done({ feed, status: null }), () => done({ status: 'error' }));
     else if (kind === 'sheet') loadSheet(app.config).then((table) => done({ table, status: null }), () => done({ status: 'error' }));

@@ -121,7 +121,7 @@ export function AppItem({ item, cache }) {
   const imageSrc = item.app.image ? cache.src(item.app.image) : null;
   return (
     <div className="tv-media-wrap tv-app">
-      <AppView app={item.app} weather={data.weather} feed={data.feed} table={data.table} imageSrc={imageSrc} status={data.status} />
+      <AppView app={item.app} weather={data.weather} feed={data.feed} table={data.table} data={data.data} comments={data.comments} imageSrc={imageSrc} status={data.status} />
     </div>
   );
 }
