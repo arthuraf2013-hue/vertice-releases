@@ -10,8 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vertice/shared": "*",
-    "firebase": "^13.2.0"
+    "@vertice/shared": "*"
   },
   "devDependencies": {
     "vite": "^8.3.6"
