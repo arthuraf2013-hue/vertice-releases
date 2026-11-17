@@ -11,7 +11,8 @@
     "./brand/*": "./src/brand/*",
     "./apps": "./src/apps/AppView.jsx",
     "./apps.css": "./src/apps/apps.css",
-    "./comments": "./src/comments.js"
+    "./comments": "./src/comments.js",
+    "./interact": "./src/interact.js"
   },
   "scripts": {
     "test": "vitest run"

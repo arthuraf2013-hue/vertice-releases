@@ -81,13 +81,23 @@ export function commentLink(base, companyId, boardId) {
   return `${b}comentar?e=${encodeURIComponent(companyId)}&m=${encodeURIComponent(boardId)}`;
 }
 
+/** Fotos de exemplo (prévia do Foto no telão): quadros coloridos, sem arquivo. */
+export function samplePhotos(now = Date.now()) {
+  const names = ['Mariana', 'João', 'Carla', 'Pedro', 'Bia', 'Rafa'];
+  const colors = ['#1160D6', '#E8A93A', '#2E8B57', '#B3141B', '#6A4CC2', '#0A1A44'];
+  return names.map((name, i) => ({ id: `ph${i}`, name, text: i % 2 ? '' : 'Que festa!', photo: `demo:${colors[i]}`, at: now - i * 7 * 60_000 }));
+}
+
+/** Link da página de comentar/enviar foto. */
+export const photoLink = (base, companyId, boardId) => commentLink(base, companyId, boardId);
+
 /** O que a TV mostra: aprovados, mais novos primeiro, no máximo `max`. */
 export function commentsForTv(list = [], max = 20) {
   return list
-    .filter((c) => c.status === 'approved' && c.text)
+    .filter((c) => c.status === 'approved' && (c.text || c.photo))
     .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
     .slice(0, max)
-    .map((c) => ({ id: c.id, name: firstName(c.name), text: c.text, at: Number(c.createdAt) || null }));
+    .map((c) => ({ id: c.id, name: firstName(c.name), text: c.text || '', at: Number(c.createdAt) || null, ...(c.photo ? { photo: c.photo } : {}) }));
 }
 
 /** Grupo de comentários que aparece agora (rodízio de `perPage` a cada `everySec`). */

@@ -13,3 +13,6 @@ export * from './qr.js';
 export * from './studio.js';
 export * from './wall.js';
 export * from './license.js';
+export * from './signage.js';
+export * from './interact.js';
+export * from './extras.js';

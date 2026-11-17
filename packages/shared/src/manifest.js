@@ -2,6 +2,7 @@ import { DEFAULT_IMAGE_SECONDS, ORDER_BOARD_DEFAULTS, DISPLAY_DEFAULTS, DISPLAY_
 import { normalizeApp, appDefaultSeconds, priceListForTv } from './apps.js';
 import { gifAutoSeconds } from './gif.js';
 import { wallForScreen, wallCell, normalizeWall } from './wall.js';
+import { layoutForScreen, normalizeLayout, hoursFor, normalizeAlert } from './signage.js';
 
 /**
  * O MANIFESTO é o que deixa o player leve: em vez de a TV ouvir telas, grades,
@@ -160,7 +161,7 @@ function guessExt(m) {
  * @param {object[]} p.media  mídias da empresa
  * @param {object} [p.company]
  */
-export function buildManifest({ screen, schedules, playlists, media, company, priceLists, walls }) {
+export function buildManifest({ screen, schedules, playlists, media, company, priceLists, walls, layouts, units }) {
   const mediaById = new Map((media || []).map((m) => [m.id, m]));
   const priceById = new Map((priceLists || []).map((l) => [l.id, l]));
   const playlistById = new Map((playlists || []).map((p) => [p.id, p]));
@@ -212,11 +213,30 @@ export function buildManifest({ screen, schedules, playlists, media, company, pr
   for (const sl of slots) sl.items = sl.items.map(applyOverride);
   for (let i = 0; i < fallback.length; i++) fallback[i] = applyOverride(fallback[i]);
 
-  const allItems = [...slots.flatMap((s) => s.items), ...fallback];
+  // Layout em zonas e barra inferior (o video wall ocupa a tela inteira: sem layout).
+  let layout = null;
+  const lay = wall ? null : layoutForScreen(layouts || [], screen);
+  if (lay) {
+    const nl = normalizeLayout(lay);
+    const zones = {};
+    for (const [z, cfg] of Object.entries(nl.zones)) {
+      zones[z] = expandPlaylist(playlistById.get(cfg.playlistId), mediaById, priceById).map(applyOverride);
+    }
+    let bar = null;
+    if (nl.bar.enabled) {
+      const logo = mediaById.get(nl.bar.logoMediaId);
+      bar = { ...nl.bar, logo: logo?.url && logo.type === 'image' ? { mediaId: logo.id, url: logo.url, ext: logo.ext || guessExt(logo), sizeBytes: logo.sizeBytes || 0 } : null };
+    }
+    if (nl.template !== 'full' || bar) layout = { id: lay.id, name: nl.name, template: nl.template, sideWidth: nl.sideWidth, zones, bar };
+  }
+  const zoneItems = layout ? Object.values(layout.zones).flat() : [];
+
+  const allItems = [...slots.flatMap((s) => s.items), ...fallback, ...zoneItems];
   // Só o que tem arquivo para baixar (aplicativos se montam na TV).
   const files = [
     ...allItems.filter((it) => it.url),
     ...allItems.flatMap((it) => it.extraAssets || []), // fotos das peças do Estúdio
+    ...(layout?.bar?.logo ? [layout.bar.logo] : []), // logo da barra inferior
   ];
   const assets = [...new Map(files.map((it) => [it.mediaId, it])).values()].map((it) => ({
     mediaId: it.mediaId,
@@ -226,6 +246,9 @@ export function buildManifest({ screen, schedules, playlists, media, company, pr
   }));
 
   const display = screenDisplay(screen);
+  const unit = (units || []).find((u) => u.id === screen.unitId);
+  const hours = hoursFor(company, unit);
+  const alert = normalizeAlert(company?.alert);
   return {
     screen: {
       id: screen.id,
@@ -242,6 +265,11 @@ export function buildManifest({ screen, schedules, playlists, media, company, pr
     company: { name: company?.name || '' },
     orderBoard: { ...ORDER_BOARD_DEFAULTS, ...(screen.orderBoard || {}) },
     wall,
+    layout,
+    // Expediente e volume por horário (null = sempre ligada, volume normal).
+    hours: hours.enabled || hours.volumes.length || hours.volume !== 100 ? hours : null,
+    // Alerta urgente: só se for para esta tela (a TV confere o prazo).
+    alert: alert && (!alert.screenIds || alert.screenIds.includes(screen.id)) ? alert : null,
     slots,
     fallback,
     assets,

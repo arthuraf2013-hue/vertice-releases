@@ -8,6 +8,8 @@ import {
   Rain, Air, SunMoon, Matches, Standings, Headlines, Currency, Indicators, Holidays, Agenda, Countdown, Birthdays,
   OnThisDay, WorldClock, Quote, Comments,
 } from './DataApps.jsx';
+import { QueueView, TimerView, PollView, PhotoWallView, StreamView, DriveView } from './LiveApps.jsx';
+export { LayoutGrid, BottomBar, ClosedScreen, AlertScreen } from './Signage.jsx';
 
 /**
  * Desenho de um aplicativo na TV. O mesmo componente roda no player e na prévia do painel.
@@ -18,7 +20,7 @@ import {
  *           data?: object|null, comments?: object[]|null, now?: number, status?: 'loading'|'error'|null }} props
  *   data: o que a fonte do app devolveu (feeds.js); comments: aprovados do mural.
  */
-export function AppView({ app, weather = null, feed = null, table = null, data = null, comments = null, imageSrc = null, now, status = null }) {
+export function AppView({ app, weather = null, feed = null, table = null, data = null, comments = null, imageSrc = null, now, status = null, preview = false }) {
   if (!app || !APP_KINDS[app.kind]) return <div className="vxa vxa-empty" />;
   const c = app.config || {};
   if (app.kind === 'youtube') {
@@ -27,6 +29,7 @@ export function AppView({ app, weather = null, feed = null, table = null, data =
       ? <iframe className="vxa-frame" src={src} title="YouTube" allow="autoplay; encrypted-media" referrerPolicy="strict-origin-when-cross-origin" />
       : <Missing text="Link do YouTube inválido" />;
   }
+  if (app.kind === 'stream') return <StreamView c={c} preview={preview} />;
   if (app.kind === 'web') {
     const src = safeHttpUrl(c.url);
     return src ? <WebFrame src={src} reloadMin={Number(c.reloadMin) || 0} /> : <Missing text="Endereço do site inválido" />;
@@ -61,6 +64,11 @@ export function AppView({ app, weather = null, feed = null, table = null, data =
           {app.kind === 'worldclock' && <WorldClock c={c} now={now} portrait={portrait} />}
           {app.kind === 'quote' && <Quote c={c} now={now} />}
           {app.kind === 'comments' && <Comments c={c} comments={comments} now={now} portrait={portrait} />}
+          {app.kind === 'photowall' && <PhotoWallView c={c} comments={comments} now={now} portrait={portrait} />}
+          {app.kind === 'poll' && <PollView c={c} d={data} portrait={portrait} />}
+          {app.kind === 'queue' && <QueueView c={c} d={data} portrait={portrait} />}
+          {app.kind === 'timer' && <TimerView c={c} d={data} now={now} portrait={portrait} />}
+          {app.kind === 'drive' && <DriveView c={c} d={data} status={status} now={now} />}
         </div>
       )}
     </Stage>

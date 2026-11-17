@@ -1,3 +1,4 @@
+import { driveSource } from './extras.js';
 /**
  * FONTES DOS APLICATIVOS: de onde cada app busca os dados e como transforma a resposta no que a
  * TV desenha. Funções puras (sem navegador, sem rede): a TV baixa o texto e chama `parse`; os
@@ -712,6 +713,7 @@ export const APP_SOURCES = {
   holidays: holidaysSource,
   onthisday: onThisDaySource,
   agenda: agendaSource,
+  drive: driveSource,
 };
 
 /** Chave de cache (muda quando muda o que se busca). */
