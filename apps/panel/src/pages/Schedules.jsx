@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { WEEKDAYS, toMinutes, formatDateTime } from '@vertice/shared';
 import { useSession } from '../session.jsx';
+import { ScreenSim } from './ScreenSim.jsx';
 import { useCol, useById } from '../data/hooks.js';
 import { api } from '../data/api.js';
 import { rebuildManifests } from '../data/manifests.js';
@@ -27,6 +28,7 @@ export function Schedules() {
   const screens = useCol(`${base}/screens`, { orderBy: ['code', 'asc'] });
   const groupById = useById(groups);
   const [editing, setEditing] = useState(null);
+  const [sim, setSim] = useState(false);
 
   if (!schedules || !playlists || !groups || !screens) return <Loading />;
 
@@ -49,7 +51,8 @@ export function Schedules() {
   return (
     <div className="vx-page">
       <PageHeader overline="CONTEÚDO" title="Programação" subtitle="Grades por dia e horário, publicadas para grupos de telas. Fora dos horários, a tela toca a playlist padrão."
-        actions={can('editor') && <Button variant="primary" icon="plus" onClick={() => setEditing({ name: '', priority: 0, groupIds: [], screenIds: [], slots: [{ days: [1, 2, 3, 4, 5], start: '08:00', end: '18:00', playlistId: playlists[0]?.id || '' }] })}>Nova grade</Button>} />
+        actions={<><Button icon="eye" onClick={() => setSim(true)}>Ver como na tela</Button>{can('editor') && <Button variant="primary" icon="plus" onClick={() => setEditing({ name: '', priority: 0, groupIds: [], screenIds: [], slots: [{ days: [1, 2, 3, 4, 5], start: '08:00', end: '18:00', playlistId: playlists[0]?.id || '' }] })}>Nova grade</Button>}</>} />
+      {sim && <ScreenSim onClose={() => setSim(false)} />}
       <Card pad={false}>
         <Table rows={schedules} onRowClick={can('editor') ? setEditing : undefined}
           empty={<EmptyState icon="calendar" title="Nenhuma grade">Crie uma grade dizendo qual playlist toca em cada horário.</EmptyState>}

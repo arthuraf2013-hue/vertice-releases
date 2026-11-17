@@ -7,12 +7,16 @@ import { Icon } from './Icon.jsx';
 import { Logo } from './kit.jsx';
 import { AppUpdate } from './AppUpdate.jsx';
 import { rebuildManifests } from '../data/manifests.js';
+import { setAuditActor } from '../data/api.js';
+import { useCol, useNow } from '../data/hooks.js';
+import { activeAlert, endAlert } from '../pages/Alert.jsx';
 
+// Itens com "app": só aparecem se a empresa tiver esse aplicativo configurado.
 const NAV = [
   ['PAINEL', [['/', 'dashboard', 'Dashboard']]],
-  ['OPERAÇÃO', [['/telas', 'screen', 'Telas'], ['/monitoramento', 'pulse', 'Monitoramento'], ['/capturas', 'camera', 'Capturas']]],
-  ['CONTEÚDO', [['/midias', 'image', 'Mídias'], ['/playlists', 'playlist', 'Playlists'], ['/programacao', 'calendar', 'Programação'], ['/aplicativos', 'apps', 'Aplicativos'], ['/comentarios', 'message', 'Comentários'], ['/price', 'tag', 'Price'], ['/estudio', 'palette', 'Estúdio'], ['/videowall', 'wall', 'Video wall']]],
-  ['COMERCIAL', [['/anunciantes', 'megaphone', 'Anunciantes'], ['/relatorios', 'chart', 'Relatórios']]],
+  ['OPERAÇÃO', [['/telas', 'screen', 'Telas'], ['/monitoramento', 'pulse', 'Monitoramento'], ['/mapa', 'map', 'Mapa de telas'], ['/capturas', 'camera', 'Capturas'], ['/alerta', 'siren', 'Alerta urgente'], ['/senhas', 'bell', 'Chamar senha', 'queue'], ['/cronometro', 'hourglass', 'Cronômetro', 'timer']]],
+  ['CONTEÚDO', [['/midias', 'image', 'Mídias'], ['/playlists', 'playlist', 'Playlists'], ['/programacao', 'calendar', 'Programação'], ['/layouts', 'layout', 'Layouts'], ['/aplicativos', 'apps', 'Aplicativos'], ['/comentarios', 'message', 'Interação'], ['/price', 'tag', 'Price'], ['/estudio', 'palette', 'Estúdio'], ['/videowall', 'wall', 'Video wall']]],
+  ['COMERCIAL', [['/anunciantes', 'megaphone', 'Anunciantes'], ['/midia-indoor', 'building', 'Mídia indoor'], ['/relatorios', 'chart', 'Relatórios']]],
   ['GESTÃO', [['/empresa', 'building', 'Empresa'], ['/downloads', 'download', 'Downloads']]],
 ];
 
@@ -20,9 +24,14 @@ const VETTA_NAV = ['VETTA SISTEMAS', [['/vetta', 'key', 'Clientes']]];
 
 export function Shell() {
   const loc = useLocation();
-  const { isVetta, company } = useSession();
+  const { isVetta, company, companyId, base, user, member } = useSession();
+  useEffect(() => setAuditActor({ uid: user?.uid || null, name: member?.name || user?.name || user?.email || '', companyId }), [user?.uid, member?.name, companyId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Atalhos de operação (senha, cronômetro) só para quem tem o aplicativo.
+  const liveApps = useCol(base ? `${base}/media` : null, { where: [['app.kind', 'in', ['queue', 'timer']]] });
+  const kinds = new Set((liveApps || []).map((m) => m.app?.kind));
+  const NAV_ON = NAV.map(([g, items]) => [g, items.filter((it) => !it[3] || kinds.has(it[3]))]);
   // Conta só da Vetta (sem empresa): só o console.
-  const nav = company ? (isVetta ? [...NAV, VETTA_NAV] : NAV) : [VETTA_NAV];
+  const nav = company ? (isVetta ? [...NAV_ON, VETTA_NAV] : NAV_ON) : [VETTA_NAV];
   const [navOpen, setNavOpen] = useState(false);
   useEffect(() => setNavOpen(false), [loc.pathname]);
   return (
@@ -64,10 +73,49 @@ export function Shell() {
           </div>
         )}
         {company && <LicenseBar />}
+        {company && <AlertBar />}
         <main className="vx-content">
           <Outlet />
         </main>
+        {company && <MobileDock kinds={kinds} />}
       </div>
+    </div>
+  );
+}
+
+/** Atalhos fixos embaixo no celular: o que a equipe faz no dia a dia. */
+function MobileDock({ kinds }) {
+  const items = [
+    ['/', 'dashboard', 'Início'],
+    ['/telas', 'screen', 'Telas'],
+    kinds.has('queue') ? ['/senhas', 'bell', 'Senhas'] : ['/midias', 'image', 'Mídias'],
+    ['/price', 'tag', 'Preços'],
+    ['/alerta', 'siren', 'Alerta'],
+  ];
+  return (
+    <nav className="vx-dock" aria-label="Atalhos">
+      {items.map(([to, icon, label]) => (
+        <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'is-active' : '')}><Icon name={icon} />{label}</NavLink>
+      ))}
+    </nav>
+  );
+}
+
+/** Alerta urgente no ar: sempre à vista, com o botão de encerrar. */
+function AlertBar() {
+  const { company, base, companyId, can } = useSession();
+  const now = useNow();
+  const [busy, setBusy] = useState(false);
+  const a = activeAlert(company, now);
+  if (!a) return null;
+  return (
+    <div className="vx-alert-bar" role="alert">
+      <Icon name="siren" />
+      <span><b>Alerta urgente nas telas:</b> {a.title}{a.until ? ` · até ${new Date(a.until).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+      <span className="vx-license-actions">
+        <Link to="/alerta">Ver</Link>
+        {can('editor') && <button type="button" disabled={busy} onClick={async () => { setBusy(true); try { await endAlert(base, companyId); } finally { setBusy(false); } }}>Encerrar</button>}
+      </span>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import {
   APP_KINDS, APP_THEMES, TICKER_SPEEDS, normalizeApp, appDefaultSeconds, geocodeUrl, weatherUrl, summarizeWeather,
   youtubeId, safeHttpUrl, formatDateTime, sheetCsvUrl, sheetTable, qrContent, parsePrice,
   APP_SOURCES, sampleComments, commentLink, blockPattern, blockedWordList,
+  voteLink, pollOptions, normalizeQueueConfig, sampleQueue, sampleTally, samplePhotos,
 } from '@vertice/shared';
 import { AppView } from '@vertice/shared/apps';
 import { useSession } from '../session.jsx';
@@ -62,7 +63,9 @@ export function Apps() {
       defaultDurationSec: Number(e.seconds) || null,
       updatedAt: api.NOW,
     };
-    if (e.kind === 'comments') return saveBoard(e, data);
+    if (e.kind === 'comments' || e.kind === 'photowall') return saveBoard(e, data);
+    if (e.kind === 'poll') return savePoll(e, data);
+    if (e.kind === 'queue' || e.kind === 'timer') return saveLive(e, data);
     if (e.id) {
       await api.update(`${base}/media/${e.id}`, data);
       if (usage.has(e.id)) await rebuildManifests(companyId);
@@ -74,7 +77,7 @@ export function Apps() {
     setEdit(null);
   };
 
-  /** Mural de comentários: a mídia do app, o mural público e a moderação, no mesmo lote. */
+  /** Mural de comentários (ou de fotos): a mídia do app, o mural público e a moderação, no mesmo lote. */
   const saveBoard = async (e, data) => {
     const id = e.id || api.newId(`${base}/media`);
     const c = e.config;
@@ -82,22 +85,65 @@ export function Apps() {
     const config = { ...c, boardId: id, link: commentLink(siteBase(), companyId, id) };
     const ops = [
       e.id
-        ? { op: 'update', path: `${base}/media/${id}`, data: { ...data, app: { kind: 'comments', config } } }
-        : { op: 'set', path: `${base}/media/${id}`, data: { ...data, app: { kind: 'comments', config }, sizeBytes: 0, createdAt: api.NOW, createdBy: member?.name || '' } },
+        ? { op: 'update', path: `${base}/media/${id}`, data: { ...data, app: { kind: e.kind, config } } }
+        : { op: 'set', path: `${base}/media/${id}`, data: { ...data, app: { kind: e.kind, config }, sizeBytes: 0, createdAt: api.NOW, createdBy: member?.name || '' } },
       {
         op: 'set',
         merge: true,
         path: `${base}/commentBoards/${id}`,
         data: {
           title: (c.title || 'Comentários').slice(0, 60), question: (c.question || '').slice(0, 140), autoApprove: !!c.autoApprove,
-          companyName: company?.name || '', theme: c.theme || 'brand', updatedAt: api.NOW, ...(e.id ? {} : { open: true }),
+          companyName: company?.name || '', theme: c.theme || 'brand', kind: e.kind === 'photowall' ? 'photos' : 'comments', updatedAt: api.NOW, ...(e.id ? {} : { open: true }),
         },
       },
       { op: 'set', path: `${base}/commentSettings/${id}`, data: { autoApprove: !!c.autoApprove, words, blockPattern: blockPattern(words) } },
     ];
     await api.batch(ops);
     if (usage.has(id)) await rebuildManifests(companyId);
-    toast(e.id ? 'Mural salvo.' : 'Mural criado. Coloque numa playlist e acompanhe os comentários em Comentários.');
+    toast(e.id ? 'Mural salvo.' : `Mural criado. Coloque numa playlist e acompanhe ${e.kind === 'photowall' ? 'as fotos' : 'os comentários'} em Interação.`);
+    setEdit(null);
+  };
+
+  /** Enquete: a mídia, a pergunta pública e o placar. Mudou as respostas, os votos recomeçam. */
+  const savePoll = async (e, data) => {
+    const id = e.id || api.newId(`${base}/media`);
+    const options = pollOptions(e.config.options);
+    const config = { ...e.config, options, pollId: id, link: voteLink(siteBase(), companyId, id) };
+    const prev = e.id ? await api.getDoc(`${base}/polls/${id}`) : null;
+    const changed = !prev || JSON.stringify(prev.options || []) !== JSON.stringify(options);
+    const round = prev ? (Number(prev.round) || 0) + (changed ? 1 : 0) : 0;
+    const ops = [
+      e.id
+        ? { op: 'update', path: `${base}/media/${id}`, data: { ...data, app: { kind: 'poll', config } } }
+        : { op: 'set', path: `${base}/media/${id}`, data: { ...data, app: { kind: 'poll', config }, sizeBytes: 0, createdAt: api.NOW, createdBy: member?.name || '' } },
+      { op: 'set', merge: true, path: `${base}/polls/${id}`, data: { question: config.question.slice(0, 120), options, round, companyName: company?.name || '', theme: config.theme || 'brand', updatedAt: api.NOW, ...(prev ? {} : { open: true }) } },
+      ...(changed ? [{ op: 'set', path: `${base}/pollTallies/${id}`, data: { round, counts: {}, total: 0 } }] : []),
+    ];
+    await api.batch(ops);
+    if (usage.has(id)) await rebuildManifests(companyId);
+    toast(e.id ? (changed && prev ? 'Enquete salva. As respostas mudaram, então os votos recomeçaram.' : 'Enquete salva.') : 'Enquete criada. Coloque numa playlist; os votos aparecem ao vivo.');
+    setEdit(null);
+  };
+
+  /** Senhas e cronômetro: a mídia e o documento que a TV escuta (o estado ao vivo). */
+  const saveLive = async (e, data) => {
+    const id = e.id || api.newId(`${base}/media`);
+    const col = e.kind === 'queue' ? 'queues' : 'timers';
+    const config = { ...e.config, ...(e.kind === 'queue' ? { ...normalizeQueueConfig(e.config), queueId: id } : { timerId: id }) };
+    const live = e.kind === 'queue'
+      ? { title: config.title, types: config.types, counters: config.counters, digits: config.digits, updatedAt: api.NOW }
+      : { title: config.title || '', updatedAt: api.NOW };
+    const ops = [
+      e.id
+        ? { op: 'update', path: `${base}/media/${id}`, data: { ...data, app: { kind: e.kind, config } } }
+        : { op: 'set', path: `${base}/media/${id}`, data: { ...data, app: { kind: e.kind, config }, sizeBytes: 0, createdAt: api.NOW, createdBy: member?.name || '' } },
+      e.id
+        ? { op: 'set', merge: true, path: `${base}/${col}/${id}`, data: live }
+        : { op: 'set', path: `${base}/${col}/${id}`, data: e.kind === 'queue' ? { ...live, seq: {}, current: null, history: [] } : { ...live, status: 'stopped', startedAt: null, pausedAt: null, pausedMs: 0 } },
+    ];
+    await api.batch(ops);
+    if (usage.has(id)) await rebuildManifests(companyId);
+    toast(e.id ? 'Aplicativo salvo.' : e.kind === 'queue' ? 'Fila criada. Coloque numa playlist e chame as senhas em Operação › Chamar senha.' : 'Cronômetro criado. Coloque numa playlist e comande em Operação › Cronômetro.');
     setEdit(null);
   };
 
@@ -105,18 +151,29 @@ export function Apps() {
     const used = usage.get(m.id);
     const ok = await confirm({
       title: `Excluir "${m.name}"?`,
-      message: `${used ? `Ele sai das playlists: ${[...used].join(', ')}.` : 'Ele não está em nenhuma playlist.'}${m.app?.kind === 'comments' ? ' Os comentários do mural também são apagados.' : ''}`,
+      message: `${used ? `Ele sai das playlists: ${[...used].join(', ')}.` : 'Ele não está em nenhuma playlist.'}${m.app?.kind === 'comments' ? ' Os comentários do mural também são apagados.' : m.app?.kind === 'photowall' ? ' As fotos enviadas também são apagadas.' : m.app?.kind === 'poll' ? ' Os votos também são apagados.' : ''}`,
       confirmLabel: 'Excluir',
       danger: true,
     });
     if (!ok) return;
     const ops = [{ op: 'delete', path: `${base}/media/${m.id}` }];
-    if (m.app?.kind === 'comments') {
-      // O mural sai junto: comentários, moderação e a página pública.
+    if (m.app?.kind === 'comments' || m.app?.kind === 'photowall') {
+      // O mural sai junto: comentários (e fotos), moderação e a página pública.
       const comments = await api.getCol(`${base}/commentBoards/${m.id}/comments`);
-      for (const cm of comments) ops.push({ op: 'delete', path: `${base}/commentBoards/${m.id}/comments/${cm.id}` });
+      for (const cm of comments) {
+        ops.push({ op: 'delete', path: `${base}/commentBoards/${m.id}/comments/${cm.id}` });
+        const file = /\/m\/[^/]+\/([^/?#]+)$/.exec(cm.photo || '')?.[1];
+        if (file) api.deleteFile(`${base}/media/${file}`).catch(() => {});
+      }
       ops.push({ op: 'delete', path: `${base}/commentBoards/${m.id}` }, { op: 'delete', path: `${base}/commentSettings/${m.id}` });
     }
+    if (m.app?.kind === 'poll') {
+      const votes = await api.getCol(`${base}/polls/${m.id}/votes`);
+      for (const v of votes.slice(0, 400)) ops.push({ op: 'delete', path: `${base}/polls/${m.id}/votes/${v.id}` });
+      ops.push({ op: 'delete', path: `${base}/polls/${m.id}` }, { op: 'delete', path: `${base}/pollTallies/${m.id}` });
+    }
+    if (m.app?.kind === 'queue') ops.push({ op: 'delete', path: `${base}/queues/${m.id}` });
+    if (m.app?.kind === 'timer') ops.push({ op: 'delete', path: `${base}/timers/${m.id}` });
     for (const p of playlists || []) {
       if ((p.items || []).some((it) => it.mediaId === m.id)) {
         ops.push({ op: 'update', path: `${base}/playlists/${p.id}`, data: { items: p.items.filter((it) => it.mediaId !== m.id), updatedAt: api.NOW } });
@@ -379,7 +436,9 @@ export function AppPreview({ app, portraitDefault = false, imageSrc = null }) {
   const feed = app.kind === 'rss' ? { source: c.source || 'Notícias', items: SAMPLE_NEWS } : null;
   // Apps de dados: a fonte de verdade quando o navegador deixa ler; senão, exemplo.
   const src = useSourcePreview(app.kind, c);
-  const shown = app.kind === 'comments' && !c.link ? { ...app, config: { ...c, link: `${siteBase()}comentar` } } : app;
+  const shown = (app.kind === 'comments' || app.kind === 'photowall') && !c.link ? { ...app, config: { ...c, link: `${siteBase()}comentar` } }
+    : app.kind === 'poll' && !c.link ? { ...app, config: { ...c, link: `${siteBase()}votar` } } : app;
+  const live = app.kind === 'queue' ? sampleQueue() : app.kind === 'timer' ? { demoElapsed: 10 + 4 * 60 + 37 } : app.kind === 'poll' ? { tally: sampleTally(pollOptions(c.options).length || 3) } : null;
   return (
     <div className="vx-app-preview">
       <div className="vx-section-head">
@@ -387,12 +446,15 @@ export function AppPreview({ app, portraitDefault = false, imageSrc = null }) {
         <Segmented value={portrait ? 'p' : 'l'} onChange={(v) => setPortrait(v === 'p')} options={[{ value: 'l', label: 'Deitada' }, { value: 'p', label: 'Em pé' }]} />
       </div>
       <div className={`vx-app-screen ${portrait ? 'is-portrait' : ''}`}>
-        <AppView app={shown} weather={weather} feed={feed} table={table} data={src.data} comments={app.kind === 'comments' ? sampleComments() : null} imageSrc={imageSrc} status={src.status || status} />
+        <AppView app={shown} weather={weather} feed={feed} table={table} data={live || src.data} comments={app.kind === 'comments' ? sampleComments() : app.kind === 'photowall' ? samplePhotos() : null} imageSrc={imageSrc} status={src.status || status} preview />
       </div>
       {app.kind === 'rss' && <p className="vx-help">Na prévia aparecem manchetes de exemplo. A TV mostra as do feed.</p>}
       {app.kind === 'sheet' && table && !table.real && <p className="vx-help">O navegador não deixou ler a planilha daqui; a prévia mostra uma tabela de exemplo. A TV lê a planilha direto.</p>}
       {APP_SOURCES[app.kind] && src.data && !src.real && <p className="vx-help">Prévia com dados de exemplo: o navegador do painel não lê essa fonte direto. A TV lê.</p>}
       {app.kind === 'comments' && <p className="vx-help">Na prévia aparecem comentários de exemplo. A TV mostra os que você aprovar.</p>}
+      {app.kind === 'photowall' && <p className="vx-help">Na prévia aparecem fotos de exemplo. A TV mostra as que você aprovar.</p>}
+      {(app.kind === 'queue' || app.kind === 'timer' || app.kind === 'poll') && <p className="vx-help">Prévia com dados de exemplo. Na TV, tudo muda ao vivo.</p>}
+      {app.kind === 'stream' && <p className="vx-help">A transmissão toca só na TV (precisa de internet lá).</p>}
     </div>
   );
 }

@@ -17,12 +17,15 @@ import { Icon } from '../ui/Icon.jsx';
 import { ScreenDisplay } from './ScreenDisplay.jsx';
 import { ScreenMediaList } from './ScreenMediaAdjust.jsx';
 import { ScreenRemote } from './ScreenRemote.jsx';
+import { Units } from './CompanyExtra.jsx';
+import { ScreenSim } from './ScreenSim.jsx';
 
 export function Screens() {
   const { base, can, units } = useSession();
   const now = useNow();
   const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState('overview');
+  const [sim, setSim] = useState(null);
   const all = useCol(`${base}/screens`, { orderBy: ['code', 'asc'] });
   const screens = useUnitFilter(all);
   const groups = useCol(`${base}/groups`, { orderBy: ['name', 'asc'] });
@@ -46,7 +49,11 @@ export function Screens() {
   return (
     <div className="vx-page">
       <PageHeader overline="OPERAÇÃO" title="Telas" subtitle="Cadastre, organize por grupo e unidade, e configure o que cada TV mostra."
-        actions={can('admin') && <Button variant="primary" icon="plus" onClick={() => setParam('parear', '1')}>Parear tela</Button>} />
+        actions={<>
+          <Button icon="eye" onClick={() => setSim('')}>Ver como na tela</Button>
+          {can('admin') && <Button variant="primary" icon="plus" onClick={() => setParam('parear', '1')}>Parear tela</Button>}
+        </>} />
+      {sim != null && <ScreenSim screenId={sim} onClose={() => setSim(null)} />}
       <Tabs value={tab} onChange={setTab} tabs={[
         { id: 'overview', label: 'Visão geral' },
         { id: 'list', label: 'Lista', count: screens.length },
@@ -93,8 +100,7 @@ export function Screens() {
 
       {tab === 'groups' && <SimpleCrud kind="groups" title="Grupos de telas" items={groups} screens={all} field="groupIds"
         help="Grupos juntam telas que mostram o mesmo conteúdo (ex.: Caixas, Vitrines). As grades de programação são publicadas para grupos." />}
-      {tab === 'units' && <SimpleCrud kind="units" title="Unidades" items={units} screens={all} field="unitId"
-        help="Unidades são as lojas ou endereços. Elas filtram o painel no seletor do topo e separam os pedidos de cada loja." withAddress />}
+      {tab === 'units' && <Units />}
 
       <PairModal open={pairOpen} onClose={() => setParam('parear', null)} onPaired={(id) => setParams({ tela: id }, { replace: true })} />
       {editing && <ScreenEditor key={editing.id} screen={editing} groups={groups} now={now} mediaById={mediaById} onClose={() => setParam('tela', null)} />}

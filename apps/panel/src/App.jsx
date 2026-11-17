@@ -22,6 +22,12 @@ import { Advertisers } from './pages/Advertisers.jsx';
 import { Studio } from './pages/Studio.jsx';
 import { VideoWalls } from './pages/VideoWalls.jsx';
 import { Console } from './pages/Console.jsx';
+import { Layouts } from './pages/Layouts.jsx';
+import { Alert } from './pages/Alert.jsx';
+import { QueueDesk } from './pages/QueueDesk.jsx';
+import { TimerDesk } from './pages/TimerDesk.jsx';
+import { ScreenMap } from './pages/ScreenMap.jsx';
+import { IndoorMedia } from './pages/IndoorMedia.jsx';
 
 // HashRouter: funciona igual no Firebase Hosting e dentro do Electron, sem regra de rewrite.
 export function App() {
@@ -71,6 +77,12 @@ function Gate() {
         <Route path="anunciantes" element={<Advertisers />} />
         <Route path="estudio" element={<Studio />} />
         <Route path="videowall" element={<VideoWalls />} />
+        <Route path="layouts" element={<Layouts />} />
+        <Route path="alerta" element={<Alert />} />
+        <Route path="senhas" element={<QueueDesk />} />
+        <Route path="cronometro" element={<TimerDesk />} />
+        <Route path="mapa" element={<ScreenMap />} />
+        <Route path="midia-indoor" element={<IndoorMedia />} />
         <Route path="empresa" element={<Company />} />
         <Route path="downloads" element={<Downloads />} />
         {s.isVetta && <Route path="vetta" element={<Console />} />}

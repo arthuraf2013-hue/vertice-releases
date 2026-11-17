@@ -167,6 +167,7 @@ function PieceEditor({ value, onChange, images, imgUrl, onClose, onSave }) {
             <Input label="Nome da peça" value={value.name} maxLength={60} onChange={(e) => set({ name: e.target.value })} />
             <Input label="Tempo na playlist (s)" type="number" min={3} max={600} value={value.seconds} placeholder={String(appDefaultSeconds('studio'))} onChange={(e) => set({ seconds: e.target.value })} />
           </div>
+          {['offer', 'notice', 'event', 'welcome'].includes(value.template) && <AiAssist template={value.template} fields={value.fields} onPick={(f) => onChange({ ...value, fields: { ...value.fields, ...f } })} />}
           {tpl.fields.map(([key, label, type, , max]) => {
             const v = value.fields[key] ?? '';
             if (type === 'icon') {
@@ -232,5 +233,51 @@ function PieceEditor({ value, onChange, images, imgUrl, onClose, onSave }) {
         </Modal>
       )}
     </Modal>
+  );
+}
+
+/** Sugestões de texto com IA: 3 opções curtas a partir do produto e do preço já digitados. */
+function AiAssist({ template, fields, onPick }) {
+  const { companyId, company } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [opts, setOpts] = useState(null);
+  const [error, setError] = useState('');
+  const [left, setLeft] = useState(null);
+  const product = template === 'offer' ? fields.product : fields.title;
+  const ask = async () => {
+    setBusy(true); setError('');
+    try {
+      const r = await api.aiText(companyId, {
+        kind: template, product, price: fields.price, store: company?.name || '', details: template === 'offer' ? fields.detail : fields.text,
+      });
+      setOpts(r.options); setLeft(r.left);
+    } catch (e) { setError(e.message || 'A IA não respondeu.'); } finally { setBusy(false); }
+  };
+  const apply = (o) => {
+    const map = template === 'offer'
+      ? { badge: o.badge, product: o.title, detail: o.detail, footnote: o.footnote }
+      : { overline: o.badge, title: o.title, text: o.detail };
+    onPick(Object.fromEntries(Object.entries(map).filter(([, v]) => v)));
+    setOpts(null);
+  };
+  return (
+    <div className="vx-ai">
+      <div className="vx-ai-head">
+        <Button size="sm" icon="sparkles" loading={busy} onClick={ask} disabled={!String(product || '').trim()} title={!String(product || '').trim() ? 'Escreva o produto ou o título primeiro' : undefined}>Sugerir textos com IA</Button>
+        <span className="vx-help">{left != null ? `${left} sugestões restantes hoje.` : 'Usa o produto, o preço e o detalhe que você já escreveu. Confira antes de salvar.'}</span>
+      </div>
+      {error && <p className="vx-help vx-help-warn"><Icon name="alert" />{error}</p>}
+      {opts && (
+        <div className="vx-ai-opts">
+          {opts.map((o, i) => (
+            <button key={i} type="button" className="vx-ai-opt" onClick={() => apply(o)}>
+              {o.badge && <small>{o.badge}</small>}
+              <b>{o.title}</b>
+              {o.detail && <span>{o.detail}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

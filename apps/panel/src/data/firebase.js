@@ -215,6 +215,16 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
       return r.id;
     },
     remove: (path) => deleteDoc(doc(db, path)),
+    /** Lê, calcula e grava de uma vez (duas pessoas chamando senha ao mesmo tempo não pegam o mesmo número). */
+    transact(path, fn) {
+      return runTransaction(db, async (tx) => {
+        const ref = doc(db, path);
+        const snap = await tx.get(ref);
+        const patch = fn(snap.exists() ? snapDoc(snap) : {});
+        if (patch) tx.set(ref, out(patch), { merge: true });
+        return patch;
+      });
+    },
     async batch(ops) {
       // O Firestore aceita até 500 operações por lote.
       for (let i = 0; i < ops.length; i += 450) {
@@ -295,6 +305,18 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
         });
         return { id: targetId };
       });
+    },
+
+    /** Textos de peça com IA (servidor de mídias; a chave fica lá). */
+    async aiText(companyId, input) {
+      if (!mediaBase) throw new Error('A IA precisa do servidor de mídias configurado.');
+      const res = await fetch(`${mediaBase}/v1/ai/${companyId}/texto`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${await idToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await mediaError(res));
+      return res.json();
     },
 
     upload(path, file, onProgress) {

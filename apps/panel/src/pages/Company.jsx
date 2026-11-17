@@ -12,16 +12,21 @@ import {
   StatusBadge, MetricCard, Toggle,
 } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
+import { CompanyHours, Activity } from './CompanyExtra.jsx';
 
 export function Company() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('aba') || 'dados';
+  const { can } = useSession();
   return (
     <div className="vx-page">
       <PageHeader overline="GESTÃO" title="Empresa" subtitle="Dados da empresa, quem acessa o painel, alertas, integrações e o seu plano." />
       <Tabs value={tab} onChange={(aba) => setParams({ aba }, { replace: true })} tabs={[
-        { id: 'dados', label: 'Dados' }, { id: 'usuarios', label: 'Usuários' }, { id: 'alertas', label: 'Alertas' }, { id: 'integracoes', label: 'Integrações' }, { id: 'licenca', label: 'Plano' },
+        { id: 'dados', label: 'Dados' }, { id: 'horario', label: 'Horário' }, { id: 'usuarios', label: 'Usuários' }, { id: 'alertas', label: 'Alertas' }, { id: 'integracoes', label: 'Integrações' },
+        ...(can('admin') ? [{ id: 'atividade', label: 'Atividade' }] : []), { id: 'licenca', label: 'Plano' },
       ]} />
+      {tab === 'horario' && <CompanyHours />}
+      {tab === 'atividade' && can('admin') && <Activity />}
       {tab === 'dados' && <CompanyData />}
       {tab === 'usuarios' && <Users />}
       {tab === 'alertas' && <Alerts />}

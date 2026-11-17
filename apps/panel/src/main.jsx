@@ -11,3 +11,8 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 );
+
+// Painel instalável no celular (só na web com HTTPS; o painel Windows não precisa).
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.vxDesktop) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}

@@ -9,7 +9,7 @@ import { api } from './api.js';
  */
 export async function rebuildManifests(cid, screenIds = null) {
   const base = `companies/${cid}`;
-  const [company, screens, schedules, playlists, media, priceLists, walls] = await Promise.all([
+  const [company, screens, schedules, playlists, media, priceLists, walls, layouts, units] = await Promise.all([
     api.getDoc(base),
     api.getCol(`${base}/screens`),
     api.getCol(`${base}/schedules`, { where: [['status', '==', 'published']] }),
@@ -17,6 +17,8 @@ export async function rebuildManifests(cid, screenIds = null) {
     api.getCol(`${base}/media`),
     api.getCol(`${base}/priceLists`),
     api.getCol(`${base}/videowalls`),
+    api.getCol(`${base}/layouts`),
+    api.getCol(`${base}/units`),
   ]);
   // Licença bloqueada (teste acabou, mensalidade em atraso, suspensa): as regras recusam publicar.
   // O aviso fica no topo do painel; aqui só não tenta.
@@ -25,7 +27,7 @@ export async function rebuildManifests(cid, screenIds = null) {
   const ops = targets.map((screen) => ({
     op: 'set',
     path: `${base}/manifests/${screen.id}`,
-    data: { ...buildManifest({ screen, schedules, playlists, media, company, priceLists, walls }), generatedAt: api.NOW },
+    data: { ...buildManifest({ screen, schedules, playlists, media, company, priceLists, walls, layouts, units }), generatedAt: api.NOW },
   }));
   if (ops.length) await api.batch(ops);
   return ops.length;
@@ -34,13 +36,16 @@ export async function rebuildManifests(cid, screenIds = null) {
 /** Telas afetadas por uma playlist (via grades publicadas que a usam). */
 export async function screensUsingPlaylist(cid, playlistId) {
   const base = `companies/${cid}`;
-  const [screens, schedules] = await Promise.all([
+  const [screens, schedules, layouts] = await Promise.all([
     api.getCol(`${base}/screens`),
     api.getCol(`${base}/schedules`, { where: [['status', '==', 'published']] }),
+    api.getCol(`${base}/layouts`),
   ]);
-  const using = schedules.filter(
-    (s) => s.fallbackPlaylistId === playlistId || (s.slots || []).some((sl) => sl.playlistId === playlistId),
-  );
+  const using = [
+    ...schedules.filter((s) => s.fallbackPlaylistId === playlistId || (s.slots || []).some((sl) => sl.playlistId === playlistId)),
+    // Zonas de layout que tocam esta playlist.
+    ...layouts.filter((l) => Object.values(l.zones || {}).some((z) => z?.playlistId === playlistId)),
+  ];
   const ids = new Set();
   for (const s of using) {
     for (const scr of screens) {

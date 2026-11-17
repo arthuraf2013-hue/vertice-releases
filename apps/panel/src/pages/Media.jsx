@@ -10,6 +10,40 @@ import { MediaSettings } from './MediaSettings.jsx';
 
 const MAX_BYTES = 500 * 1024 * 1024;
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm';
+const PICK = `${ACCEPT},application/pdf`;
+// pdf.js vem da CDN só quando alguém envia um PDF (o painel está online nessa hora).
+const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+const PDFJS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+const PDF_MAX_PAGES = 40;
+
+/**
+ * PDF → uma imagem por página (1920 px de largura, JPEG), no próprio navegador.
+ * Chama `onPage(blob, n, total)` a cada página pronta.
+ */
+async function pdfPages(file, onPage) {
+  const pdfjs = await import(/* @vite-ignore */ PDFJS);
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const total = Math.min(doc.numPages, PDF_MAX_PAGES);
+  for (let n = 1; n <= total; n++) {
+    const page = await doc.getPage(n);
+    const v1 = page.getViewport({ scale: 1 });
+    const portrait = v1.height > v1.width;
+    const scale = (portrait ? 1080 : 1920) / v1.width;
+    const vp = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(vp.width);
+    canvas.height = Math.round(vp.height);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const blob = await new Promise((ok) => canvas.toBlob(ok, 'image/jpeg', 0.88));
+    await onPage(blob, n, total, canvas.width, canvas.height);
+    page.cleanup();
+  }
+  return { total, all: doc.numPages };
+}
 
 /** Lê dimensões/duração e gera um pôster (para vídeos) antes de subir. */
 async function inspect(file) {
@@ -101,11 +135,15 @@ export function Media() {
     if (!can('editor')) return;
     let budget = quota - used;
     for (const file of [...files]) {
+      if (file.type === 'application/pdf') {
+        await importPdf(file);
+        continue;
+      }
       const row = { id: Math.random(), name: file.name, progress: 0 };
       setUploads((u) => [...u, row]);
       const patch = (p) => setUploads((u) => u.map((x) => (x.id === row.id ? { ...x, ...p } : x)));
       try {
-        if (!ACCEPT.split(',').includes(file.type)) throw new Error('Formato não suportado. Use JPG, PNG, WEBP, GIF, MP4 ou WEBM.');
+        if (!ACCEPT.split(',').includes(file.type)) throw new Error('Formato não suportado. Use JPG, PNG, WEBP, GIF, MP4, WEBM ou PDF.');
         if (file.size > MAX_BYTES) throw new Error('Arquivo acima de 500 MB.');
         if (quota && file.size > budget) throw new Error('Sem espaço no plano. Exclua mídias ou amplie o plano.');
         const meta = await inspect(file);
@@ -133,6 +171,42 @@ export function Media() {
       } catch (e) {
         patch({ error: e.message });
       }
+    }
+  };
+
+  /**
+   * PDF: cada página vira uma imagem na biblioteca e o arquivo vira uma playlist pronta,
+   * com as páginas em ordem (10 s cada). A TV toca offline, como qualquer imagem.
+   */
+  const importPdf = async (file) => {
+    const row = { id: Math.random(), name: file.name, progress: 0 };
+    setUploads((u) => [...u, row]);
+    const patch = (p) => setUploads((u) => u.map((x) => (x.id === row.id ? { ...x, ...p } : x)));
+    const title = file.name.replace(/\.pdf$/i, '');
+    const items = [];
+    let bytes = 0;
+    try {
+      const r = await pdfPages(file, async (blob, n, total, width, height) => {
+        if (quota && used + bytes + blob.size > quota) throw new Error('Sem espaço no plano para todas as páginas.');
+        const id = api.newId(`${base}/media`);
+        const storagePath = `${base}/media/${id}.jpg`;
+        const { url } = await api.upload(storagePath, new File([blob], `${id}.jpg`, { type: 'image/jpeg' }), (p) => patch({ progress: (n - 1 + p) / total }));
+        await api.set(`${base}/media/${id}`, {
+          name: `${title} · pág. ${n}`, type: 'image', url, thumbUrl: url, ext: 'jpg', sizeBytes: blob.size, storagePath, thumbPath: null,
+          width, height, durationSec: null, defaultDurationSec: 10, sourcePdf: file.name, createdAt: api.NOW, createdBy: member?.name || user?.email,
+        });
+        bytes += blob.size;
+        items.push({ mediaId: id });
+      });
+      await api.batch([
+        { op: 'update', path: base, data: { storageUsedBytes: api.inc(bytes) } },
+        { op: 'set', path: `${base}/playlists/${api.newId(`${base}/playlists`)}`, data: { name: title, items, createdAt: api.NOW, updatedAt: api.NOW } },
+      ]);
+      setUploads((u) => u.filter((x) => x.id !== row.id));
+      toast(`${r.total} ${r.total === 1 ? 'página virou' : 'páginas viraram'} imagens e a playlist "${title}" foi criada.${r.all > r.total ? ` O PDF tem ${r.all} páginas; entraram as ${r.total} primeiras.` : ''}`);
+    } catch (e) {
+      if (bytes) await api.update(base, { storageUsedBytes: api.inc(bytes) }).catch(() => {});
+      patch({ error: /fetch|import|module/i.test(String(e.message)) ? 'Não deu para abrir o leitor de PDF (precisa de internet).' : e.message });
     }
   };
 
@@ -186,9 +260,9 @@ export function Media() {
   return (
     <div className="vx-page" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={(e) => e.currentTarget === e.target && setDrag(false)}
       onDrop={(e) => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}>
-      <PageHeader overline="CONTEÚDO" title="Mídias" subtitle="Imagens e vídeos da sua empresa. As TVs baixam só o que está na programação delas."
+      <PageHeader overline="CONTEÚDO" title="Mídias" subtitle="Imagens, vídeos e PDF (cada página vira uma imagem). As TVs baixam só o que está na programação delas."
         actions={can('editor') && <Button variant="primary" icon="upload" onClick={() => inputRef.current?.click()}>Enviar mídias</Button>} />
-      <input ref={inputRef} type="file" multiple accept={ACCEPT} hidden onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} />
+      <input ref={inputRef} type="file" multiple accept={PICK} hidden onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} />
 
       <Card className="vx-storage">
         <div className="vx-storage-row">

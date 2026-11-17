@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   geocodeUrl, safeHttpUrl, LEAGUES, NEWS_FEEDS, CURRENCIES, INDICATORS, WORLD_ZONES, APP_SOURCES,
   parseBirthdays, parseExtraDates, countdownParts, blockedWordList, COMMENT_LIMITS,
+  TIMER_MODES, normalizeTimer, timerTotal, parseStarts, pollOptions, POLL_LIMITS, normalizeQueueConfig, driveFolderId, streamKind,
 } from '@vertice/shared';
 import { Button, Input, Select, Toggle, Segmented, PillGroup } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
@@ -191,6 +192,37 @@ export function NewAppFields({ kind, c, set }) {
       );
     case 'comments':
       return <CommentFields c={c} set={set} />;
+    case 'photowall':
+      return <PhotoFields c={c} set={set} />;
+    case 'poll':
+      return <PollFields c={c} set={set} />;
+    case 'queue':
+      return <QueueFields c={c} set={set} />;
+    case 'timer':
+      return <TimerFields c={c} set={set} />;
+    case 'stream':
+      return (
+        <>
+          <Input label="Link da transmissão" value={c.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://…/index.m3u8"
+            help="Link HLS (.m3u8) ou vídeo .mp4 de um canal, câmera IP ou serviço de streaming que você tem direito de exibir. Links de YouTube vão no app YouTube." />
+          <div className="vx-form-row">
+            <Input label="Nome na tela (opcional)" value={c.title} maxLength={30} onChange={(e) => set({ title: e.target.value })} placeholder="Ex.: Canal da loja" />
+            <Toggle label="Sem som" checked={!!c.muted} onChange={(v) => set({ muted: v })} />
+          </div>
+        </>
+      );
+    case 'drive':
+      return (
+        <>
+          <Input label="Link da pasta do Google Drive" value={c.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://drive.google.com/drive/folders/…"
+            help={'Na pasta: Compartilhar → "Qualquer pessoa com o link" pode ver. Entram JPG, PNG, WebP e GIF, em ordem de nome (use 01, 02… no começo).'} />
+          <div className="vx-form-row">
+            <Select label="Tempo de cada imagem" value={String(c.seconds)} onChange={(e) => set({ seconds: Number(e.target.value) })} options={[5, 8, 10, 15, 20, 30].map((n) => ({ value: String(n), label: `${n} segundos` }))} />
+            <Segmented label="Imagem" value={c.fit === 'cover' ? 'cover' : 'contain'} onChange={(v) => set({ fit: v })} options={[{ value: 'contain', label: 'Inteira' }, { value: 'cover', label: 'Preenche a tela' }]} />
+          </div>
+          <p className="vx-help">A TV confere a pasta a cada 15 minutos. Coloque o tempo do app na playlist como (número de imagens × tempo de cada uma). As imagens vêm do Google na hora: sem internet, a TV mostra só as que já abriu.</p>
+        </>
+      );
     default:
       return null;
   }
@@ -234,6 +266,11 @@ export function validateNewApp(kind, c) {
   if (kind === 'holidays' && String(c.extra || '').trim() && !parseExtraDates(c.extra).length) return 'Não entendi as datas. Use, por exemplo: 08/12 Nossa Senhora da Conceição.';
   if (kind === 'agenda' && !safeHttpUrl(String(c.url || '').replace(/^webcal:/i, 'https:'))) return 'Cole o endereço público do calendário (.ics).';
   if (kind === 'comments' && !String(c.question || '').trim()) return 'Escreva a pergunta para o público.';
+  if (kind === 'poll' && !String(c.question || '').trim()) return 'Escreva a pergunta da enquete.';
+  if (kind === 'poll' && pollOptions(c.options).length < POLL_LIMITS.minOptions) return 'Coloque pelo menos 2 respostas.';
+  if (kind === 'queue' && !(c.types || []).some((t) => t.prefix)) return 'Coloque pelo menos um tipo de senha com letra.';
+  if (kind === 'stream' && !streamKind(c.url)) return 'Cole um link de transmissão .m3u8 (ou vídeo .mp4).';
+  if (kind === 'drive' && !driveFolderId(c.url)) return 'Cole o link de uma pasta do Google Drive.';
   return null;
 }
 
@@ -265,4 +302,105 @@ export function useSourcePreview(kind, c) {
     return () => { alive = false; clearTimeout(t); };
   }, [kind, key]); // eslint-disable-line react-hooks/exhaustive-deps
   return s;
+}
+
+function PhotoFields({ c, set }) {
+  return (
+    <>
+      <Input label="Título" value={c.title} maxLength={60} onChange={(e) => set({ title: e.target.value })} />
+      <Input label="Chamada para o público" value={c.question} maxLength={140} onChange={(e) => set({ question: e.target.value })} />
+      <div className="vx-form-row">
+        <Segmented label="Na tela" value={c.layout === 'single' ? 'single' : 'mosaic'} onChange={(v) => set({ layout: v })} options={[{ value: 'mosaic', label: 'Mosaico' }, { value: 'single', label: 'Uma por vez' }]} />
+        <Select label="Trocar a cada" value={String(c.rotateSec)} onChange={(e) => set({ rotateSec: Number(e.target.value) })} options={[4, 6, 8, 10].map((n) => ({ value: String(n), label: `${n} segundos` }))} />
+      </div>
+      <Toggle label="Mostrar o QR Code na tela" checked={c.showQr !== false} onChange={(v) => set({ showQr: v })} />
+      <Toggle label="Aprovar sozinho" help="Desligado (recomendado): cada foto espera a sua aprovação em Interação antes de ir para a TV." checked={!!c.autoApprove} onChange={(v) => set({ autoApprove: v })} />
+      <p className="vx-help">A pessoa tira ou escolhe a foto no celular; ela chega reduzida (até 1600 px) e conta no espaço do seu plano. Cada aparelho manda até 3 fotos a cada 10 minutos.</p>
+    </>
+  );
+}
+
+function PollFields({ c, set }) {
+  const options = Array.isArray(c.options) ? c.options : pollOptions(c.options);
+  return (
+    <>
+      <Input label="Pergunta" value={c.question} maxLength={POLL_LIMITS.question} onChange={(e) => set({ question: e.target.value })} />
+      <label className="vx-field">
+        <span className="vx-label">Respostas (uma por linha, de 2 a 6)</span>
+        <textarea className="vx-input vx-textarea" rows={5} value={options.join('\n')} onChange={(e) => set({ options: e.target.value.split('\n').slice(0, POLL_LIMITS.maxOptions).map((l) => l.slice(0, POLL_LIMITS.option)) })} />
+      </label>
+      <div className="vx-form-row">
+        <Toggle label="Mostrar o resultado ao vivo" checked={c.showResults !== false} onChange={(v) => set({ showResults: v })} />
+        <Toggle label="Mostrar o QR Code" checked={c.showQr !== false} onChange={(v) => set({ showQr: v })} />
+      </div>
+      <p className="vx-help">Cada aparelho vota uma vez. Para recomeçar a votação, use "Zerar votos" em Interação › Enquetes.</p>
+    </>
+  );
+}
+
+function QueueFields({ c, set }) {
+  const q = normalizeQueueConfig(c);
+  const types = c.types || q.types;
+  const setType = (i, p) => set({ types: types.map((t, j) => (j === i ? { ...t, ...p } : t)) });
+  return (
+    <>
+      <Input label="Título na tela" value={c.title} maxLength={40} onChange={(e) => set({ title: e.target.value })} />
+      <label className="vx-field">
+        <span className="vx-label">Tipos de senha</span>
+        <div className="vx-vol-list">
+          {types.map((t, i) => (
+            <div key={i} className="vx-type-row">
+              <input className="vx-input vx-input-sm vx-prefix" value={t.prefix} maxLength={2} onChange={(e) => setType(i, { prefix: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') })} aria-label="Letra" />
+              <input className="vx-input vx-input-sm" value={t.label} maxLength={24} onChange={(e) => setType(i, { label: e.target.value })} aria-label="Nome do tipo" />
+              {types.length > 1 && <button type="button" className="vx-btn vx-btn-sm vx-btn-danger" onClick={() => set({ types: types.filter((_, j) => j !== i) })}>Remover</button>}
+            </div>
+          ))}
+          {types.length < 4 && <Button size="sm" icon="plus" onClick={() => set({ types: [...types, { prefix: 'C', label: 'Convênio' }] })}>Adicionar tipo</Button>}
+        </div>
+        <span className="vx-help">Ex.: A (normal) e P (preferencial). Cada tipo tem a sua sequência.</span>
+      </label>
+      <label className="vx-field">
+        <span className="vx-label">Guichês, salas ou mesas (um por linha)</span>
+        <textarea className="vx-input vx-textarea" rows={3} value={(Array.isArray(c.counters) ? c.counters : q.counters).join('\n')} onChange={(e) => set({ counters: e.target.value.split('\n').slice(0, 12) })} />
+      </label>
+      <div className="vx-form-row">
+        <Toggle label="Som de chamada" checked={c.sound !== false} onChange={(v) => set({ sound: v })} />
+        <Toggle label="Falar a senha" help="Usa a voz em português do aparelho." checked={c.voice !== false} onChange={(v) => set({ voice: v })} />
+      </div>
+      <p className="vx-help">Depois de salvar, chame as senhas em <b>Operação › Chamar senha</b>, no computador ou no celular.</p>
+    </>
+  );
+}
+
+function TimerFields({ c, set }) {
+  const t = normalizeTimer(c);
+  const total = timerTotal(t);
+  const starts = parseStarts(c.starts);
+  return (
+    <>
+      <Select label="Tipo de treino" value={t.mode} onChange={(e) => set({ mode: e.target.value })} options={Object.entries(TIMER_MODES).map(([k, m]) => ({ value: k, label: `${m.label}: ${m.desc}` }))} />
+      {(t.mode === 'amrap' || t.mode === 'fortime' || t.mode === 'countdown') && (
+        <Input label={t.mode === 'fortime' ? 'Limite (minutos)' : 'Minutos'} type="number" min={1} max={120} value={c.minutes} onChange={(e) => set({ minutes: Number(e.target.value) })} />
+      )}
+      {(t.mode === 'interval' || t.mode === 'emom') && (
+        <div className="vx-form-row">
+          <Input label="Rodadas" type="number" min={1} max={99} value={c.rounds} onChange={(e) => set({ rounds: Number(e.target.value) })} />
+          {t.mode === 'interval' && <Input label="Esforço (s)" type="number" min={5} max={600} value={c.work} onChange={(e) => set({ work: Number(e.target.value) })} />}
+          {t.mode === 'interval' && <Input label="Descanso (s)" type="number" min={0} max={600} value={c.rest} onChange={(e) => set({ rest: Number(e.target.value) })} />}
+        </div>
+      )}
+      <div className="vx-form-row">
+        <Input label="Preparação (s)" type="number" min={0} max={30} value={c.prep} onChange={(e) => set({ prep: Number(e.target.value) })} />
+        <Input label="Título do WOD" value={c.title} maxLength={40} onChange={(e) => set({ title: e.target.value })} />
+      </div>
+      <label className="vx-field">
+        <span className="vx-label">WOD (um exercício por linha, opcional)</span>
+        <textarea className="vx-input vx-textarea" rows={4} value={c.wod} onChange={(e) => set({ wod: e.target.value })} placeholder={'10 burpees\n15 kettlebell swings\n200 m corrida'} />
+      </label>
+      <Input label="Começar sozinho nos horários (opcional)" value={c.starts} onChange={(e) => set({ starts: e.target.value })} placeholder="06:00, 07:00, 18:30"
+        help={starts.length ? `Começa sozinho ${starts.length} vez(es) por dia. Também dá para iniciar e pausar pelo celular.` : 'Em branco: comanda pelo celular, em Operação › Cronômetro.'} />
+      <Toggle label="Bipes" help="Nos 3 últimos segundos de cada fase e na troca." checked={c.beeps !== false} onChange={(v) => set({ beeps: v })} />
+      <p className="vx-help">Treino de {Math.floor(total / 60)} min {total % 60 ? `${total % 60} s` : ''}{t.prep ? ` + ${t.prep} s de preparação` : ''}. Deixe o app sozinho numa playlist (ou fixe na TV) para não sair da tela no meio do treino.</p>
+    </>
+  );
 }

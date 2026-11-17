@@ -141,7 +141,7 @@ export function createDemoBackend() {
     const col = (name) => [...store.entries()].filter(([p]) => p.startsWith(`${path}/${name}/`) && p.split('/').length === 4).map(([p, d]) => ({ id: p.split('/').pop(), ...d }));
     const schedules = col('schedules').filter((x) => x.status === 'published');
     for (const screen of col('screens')) {
-      store.set(`${path}/manifests/${screen.id}`, buildManifest({ screen, schedules, playlists: col('playlists'), media: col('media'), company, priceLists: col('priceLists'), walls: col('videowalls') }));
+      store.set(`${path}/manifests/${screen.id}`, buildManifest({ screen, schedules, playlists: col('playlists'), media: col('media'), company, priceLists: col('priceLists'), walls: col('videowalls'), layouts: col('layouts'), units: col('units') }));
     }
   }
   const companyId = 'demo';
@@ -235,6 +235,26 @@ export function createDemoBackend() {
     async remove(path) {
       store.delete(path);
       notify();
+    },
+    /** IA na demonstração: três sugestões fixas, montadas com o que foi digitado. */
+    async aiText(cid, input) {
+      await new Promise((r) => setTimeout(r, 900));
+      const p = input.product || 'Pão de queijo';
+      const price = input.price ? ` por R$ ${input.price}` : '';
+      return {
+        left: 59,
+        options: [
+          { badge: 'SÓ HOJE', title: `${p} quentinho`.slice(0, 32), detail: `Saindo do forno agora${price}. Peça no balcão.`.slice(0, 70), footnote: 'Enquanto durar o estoque' },
+          { badge: 'NOVIDADE', title: `Prove o ${p.toLowerCase()}`.slice(0, 32), detail: 'Receita da casa, feita aqui todos os dias.', footnote: '' },
+          { badge: 'OFERTA', title: p.slice(0, 32), detail: `O preferido da clientela${price}.`.slice(0, 70), footnote: 'Válido nesta loja' },
+        ],
+      };
+    },
+    /** Lê, calcula e grava de uma vez (no Firebase, numa transação). `fn(dados)` devolve o que mudar. */
+    async transact(path, fn) {
+      const patch = fn(readDoc(path) || {});
+      if (patch) write(path, patch, { merge: true });
+      return patch;
     },
     async batch(ops) {
       for (const o of ops) {

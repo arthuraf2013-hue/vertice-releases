@@ -1,0 +1,22 @@
+{
+  "name": "Vértice · Painel",
+  "short_name": "Vértice",
+  "description": "Telas, preços, senhas e alertas da sua loja, na palma da mão.",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060b1c",
+  "theme_color": "#060b1c",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Chamar senha", "url": "./#/senhas", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Price", "url": "./#/price", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Alerta urgente", "url": "./#/alerta", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
+}

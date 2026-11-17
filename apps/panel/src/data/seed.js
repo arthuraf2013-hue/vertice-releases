@@ -36,6 +36,9 @@ export function seedDemo({ set }) {
       teste: { status: 'trial', trialEndsAt: now + 2 * DAY, paidUntil: null },
       suspensa: { status: 'suspended' },
     })[new URLSearchParams(location.search).get('licenca')] : null), graceDays: 5, monthlyPrice: 189.9, ownerEmail: 'cristina@boamassa.com.br',
+    hours: { enabled: true, days: [1, 2, 3, 4, 5, 6], open: '06:00', close: '20:00', closedMode: 'clock', closedText: '', volumes: [{ start: '12:00', end: '14:00', level: 40 }], volume: 80 },
+    catalog: { enabled: true, title: 'Anuncie nas TVs da Boa Massa', intro: 'Seu anúncio nas TVs das nossas padarias, visto por quem já está comprando.', whatsapp: '5581999990000',
+      packages: [{ name: 'Básico', seconds: 15, insertionsPerDay: 60, days: 30, price: 290 }, { name: 'Destaque', seconds: 15, insertionsPerDay: 120, days: 30, price: 490 }] },
     alerts: { enabled: true, emails: ['cristina@boamassa.com.br'], whatsapps: ['5581999990000'], offlineMinutes: 15, quietStart: '22:00', quietEnd: '06:00' },
   });
   set(`${c}/payments/p1`, { amount: 189.9, paidAt: now - 18 * DAY, method: 'Pix', months: 1, paidUntil: now + 12 * DAY, by: 'Vetta Sistemas' });
@@ -63,8 +66,9 @@ export function seedDemo({ set }) {
   set(`${c}/members/u-joana`, { role: 'viewer', name: 'Joana Prado', email: 'joana@boamassa.com.br', joinedAt: now - 3 * 1440 * MIN });
   set('invites/caixa.cf@boamassa.com.br', { companyId: 'demo', companyName: 'Padaria Boa Massa', role: 'viewer', invitedAt: now - 2 * 60 * MIN, invitedBy: 'Cristina Albuquerque' });
 
-  set(`${c}/units/u1`, { name: 'Boa Viagem', address: 'Av. Conselheiro Aguiar, 1200' });
-  set(`${c}/units/u2`, { name: 'Casa Forte', address: 'Praça de Casa Forte, 88' });
+  set(`${c}/units/u1`, { name: 'Boa Viagem', address: 'Av. Conselheiro Aguiar, 1200', city: 'Recife', geo: { lat: -8.1189, lon: -34.9008, city: 'Recife' }, catalog: { show: true, audience: 1400, description: 'Caixa, vitrine e balcão de café. Público família e trabalhadores da região.' } });
+  set(`${c}/units/u2`, { name: 'Casa Forte', address: 'Praça de Casa Forte, 88', city: 'Recife', geo: { lat: -8.0322, lon: -34.9177, city: 'Recife' }, catalog: { show: true, audience: 900, description: 'Video wall na vitrine voltado para a praça.' },
+    hours: { enabled: true, days: [0, 1, 2, 3, 4, 5, 6], open: '06:00', close: '21:00', closedMode: 'message', closedText: 'Estamos fechados. Até amanhã!', volumes: [], volume: 80 } });
   set(`${c}/groups/g1`, { name: 'Caixas', color: 'data-1' });
   set(`${c}/groups/g2`, { name: 'Vitrines', color: 'data-2' });
   set(`${c}/groups/g3`, { name: 'Cozinha e retirada', color: 'data-3' });
@@ -223,4 +227,38 @@ export function seedDemo({ set }) {
       createdAt: now - (12 - i) * MIN, readyAt: readyAgo ? now - readyAgo * MIN : null,
     });
   });
+
+  // ---------- Recursos novos (layouts, horário, senhas, cronômetro, enquete, fotos, mídia indoor, atividade) ----------
+  set(`${c}/layouts/L1`, {
+    name: 'Caixas com Wi-Fi e avisos', template: 'side', sideWidth: 30, zones: { side: { playlistId: 'p-lateral' } },
+    bar: { enabled: true, lines: ['Encomendas de Natal abertas até 20/12', 'Pix, cartão e vale-refeição', 'Siga @padariaboamassa'], speed: 'normal', clock: true, date: true, logoMediaId: '', title: 'Boa Massa', theme: 'brand' },
+    groupIds: ['g1'], screenIds: [], active: true, updatedAt: now - 2 * 60 * MIN, createdAt: now - 3 * DAY,
+  });
+  set(`${c}/media/app-wifi`, { type: 'app', name: 'Wi-Fi dos clientes', app: { kind: 'qr', config: { mode: 'wifi', ssid: 'BoaMassa-Clientes', password: 'paoquentinho', security: 'WPA', title: 'Wi-Fi grátis', subtitle: 'Aponte a câmera', theme: 'light' } }, sizeBytes: 0, createdAt: now - 3 * DAY });
+  set(`${c}/playlists/p-lateral`, { name: 'Coluna do caixa', updatedAt: now - 3 * DAY, items: [{ mediaId: 'app-wifi', durationSec: 20 }, { mediaId: 'app-weather', durationSec: 12 }] });
+
+  set(`${c}/media/app-senhas`, { type: 'app', name: 'Senhas da encomenda', app: { kind: 'queue', config: { title: 'Retirada de encomendas', types: [{ prefix: 'A', label: 'Normal' }, { prefix: 'P', label: 'Preferencial' }], counters: ['Balcão 1', 'Balcão 2'], digits: 3, voice: true, sound: true, queueId: 'app-senhas', theme: 'brand' } }, sizeBytes: 0, createdAt: now - 2 * DAY });
+  set(`${c}/queues/app-senhas`, { title: 'Retirada de encomendas', types: [{ prefix: 'A', label: 'Normal' }, { prefix: 'P', label: 'Preferencial' }], counters: ['Balcão 1', 'Balcão 2'], digits: 3,
+    seq: { A: 24, P: 7 }, current: { code: 'A024', prefix: 'A', number: 24, counter: 'Balcão 2', at: now - 40_000, n: 31 },
+    history: [{ code: 'P007', prefix: 'P', number: 7, counter: 'Balcão 1', at: now - 3 * MIN }, { code: 'A023', prefix: 'A', number: 23, counter: 'Balcão 1', at: now - 6 * MIN }, { code: 'A022', prefix: 'A', number: 22, counter: 'Balcão 2', at: now - 9 * MIN }] });
+  set(`${c}/media/app-timer`, { type: 'app', name: 'Cronômetro do aulão', app: { kind: 'timer', config: { mode: 'tabata', minutes: 12, rounds: 8, work: 20, rest: 10, prep: 10, title: 'Aulão de sábado', wod: 'Agachamento\nFlexão\nPrancha\nPolichinelo', starts: '', timerId: 'app-timer', beeps: true, theme: 'night' } }, sizeBytes: 0, createdAt: now - 1 * DAY });
+  set(`${c}/timers/app-timer`, { title: 'Aulão de sábado', status: 'stopped', startedAt: null, pausedAt: null, pausedMs: 0 });
+  set(`${c}/media/app-enquete`, { type: 'app', name: 'Enquete do bolo de sábado', app: { kind: 'poll', config: { question: 'Qual bolo você quer no sábado?', options: ['Chocolate com morango', 'Bolo de rolo', 'Cenoura com calda', 'Macaxeira'], showQr: true, showResults: true, pollId: 'app-enquete', link: 'https://vertice.vettasistemas.com.br/votar?e=demo&m=app-enquete', theme: 'brand' } }, sizeBytes: 0, createdAt: now - 1 * DAY });
+  set(`${c}/polls/app-enquete`, { question: 'Qual bolo você quer no sábado?', options: ['Chocolate com morango', 'Bolo de rolo', 'Cenoura com calda', 'Macaxeira'], open: true, round: 0, companyName: 'Padaria Boa Massa', theme: 'brand' });
+  set(`${c}/pollTallies/app-enquete`, { round: 0, counts: { o0: 42, o1: 27, o2: 18, o3: 9 }, total: 96 });
+  set(`${c}/media/app-fotos`, { type: 'app', name: 'Fotos da festa de 10 anos', app: { kind: 'photowall', config: { title: 'Festa de 10 anos', question: 'Mande sua foto e apareça no telão!', showQr: true, rotateSec: 6, boardId: 'app-fotos', link: 'https://vertice.vettasistemas.com.br/comentar?e=demo&m=app-fotos', layout: 'mosaic', theme: 'night' } }, sizeBytes: 0, createdAt: now - 5 * 60 * MIN });
+  set(`${c}/commentBoards/app-fotos`, { title: 'Festa de 10 anos', question: 'Mande sua foto e apareça no telão!', open: true, autoApprove: false, companyName: 'Padaria Boa Massa', theme: 'night', kind: 'photos' });
+  const photo = (color, label) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="${color}"/><circle cx="400" cy="250" r="110" fill="rgba(255,255,255,.35)"/><text x="400" y="520" text-anchor="middle" font-family="Sora,sans-serif" font-size="44" font-weight="700" fill="#fff">${label}</text></svg>`)}`;
+  [['f1', 'Mariana', 'Que festa!', '#1160D6', 'pending', 3], ['f2', 'João', '', '#E8A93A', 'pending', 7], ['f3', 'Carla', 'Parabéns, Boa Massa!', '#2E8B57', 'approved', 15]]
+    .forEach(([id, name, text, color, status, min]) => set(`${c}/commentBoards/app-fotos/comments/${id}`, { name, text, photo: photo(color, name), status, createdAt: now - min * MIN, uid: `an-${id}` }));
+
+  set(`${c}/proposals/pr1`, { client: 'Farmácia Pague Bem', contact: 'Roberta', phone: '(81) 98888-1122', email: '', unitIds: ['u1', 'u2'], packageName: 'Destaque', seconds: 15, insertionsPerDay: 120,
+    start: isoDay(now + 2 * DAY), end: isoDay(now + 31 * DAY), price: 490, discount: 40, status: 'sent', notes: 'Inclui a vitrine de Casa Forte.', createdAt: now - 1 * DAY, updatedAt: now - 1 * DAY });
+  set(`${c}/proposals/pr2`, { client: 'Ótica Visão Clara', contact: 'Paulo', phone: '', email: '', unitIds: ['u1'], packageName: 'Básico', seconds: 15, insertionsPerDay: 60,
+    start: isoDay(now + 7 * DAY), end: isoDay(now + 36 * DAY), price: 290, discount: 0, status: 'draft', notes: '', createdAt: now - 3 * 60 * MIN, updatedAt: now - 3 * 60 * MIN });
+
+  [['au1', 'publish', 'Grade', 'Grade da semana', 'Lucas Ferraz', 35], ['au2', 'update', 'Tabela de preços', 'Pães e salgados', 'Cristina Albuquerque', 80], ['au3', 'create', 'Layout', 'Caixas com Wi-Fi e avisos', 'Lucas Ferraz', 125],
+    ['au4', 'delete', 'Mídia', 'Promo Dia das Mães.png', 'Lucas Ferraz', 300], ['au5', 'approve', 'Comentário', '', 'Joana Prado', 410], ['au6', 'alert-off', 'Alerta urgente', 'Sem sistema', 'Cristina Albuquerque', 1440]]
+    .forEach(([id, action, area, targetName, byName, min]) => set(`${c}/audit/${id}`, { action, area, targetId: id, targetName, fields: action === 'update' ? ['items'] : [], uid: 'x', byName, at: now - min * MIN }));
+
 }
