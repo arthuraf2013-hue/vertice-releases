@@ -29,7 +29,7 @@ Estados do player para conferir o visual: `http://localhost:5174/?demo=pairing` 
 
 ### Com Firebase de verdade
 
-1. Projeto Firebase do Vértice: `vertice-7ffa0`. Usa **Authentication** (E-mail/senha e Anônimo) e **Firestore**. As mídias ficam no servidor próprio (`servers/media`), não no Firebase Storage. Em produção ele roda numa VPS com HTTPS, junto com o serviço de alertas: veja [docs/VPS.md](docs/VPS.md).
+1. Projeto Firebase do Vértice: `vertice-7ffa0`. Usa **Authentication** (E-mail/senha e Anônimo) e **Firestore**. As mídias ficam no servidor próprio (`servers/media`), não no Firebase Storage. Em produção ele roda numa VPS com HTTPS, junto com o serviço de alertas: veja [docs/VPS.md](docs/VPS.md). Aplicativos de tela, fontes e o mural de comentários: [docs/APPS.md](docs/APPS.md).
 2. Copie `apps/panel/.env.example` e `apps/player/.env.example` para `.env` e preencha com o app Web do projeto.
 3. Troque `vertice-xxxx` em `.firebaserc` pelo id do projeto.
 4. Publique as regras: `npm run deploy:rules`.
