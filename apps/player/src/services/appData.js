@@ -7,9 +7,15 @@ import {
 import { local } from './platform.js';
 import { host } from './host.js';
 import { watchComments } from './comments.js';
+import { watchLive } from './live.js';
+import { clockOffset } from './clock.js';
+import { sampleQueue, sampleTally, samplePhotos, spokenTicket, normalizeQueueConfig } from '@vertice/shared';
+import { dingDong, speak } from './speak.js';
 
 // Open-Meteo pede chave para uso comercial (servidor "customer-"). Vem do PLAYER_ENV na publicação.
 const OPEN_METEO_KEY = import.meta.env.VITE_OPEN_METEO_KEY || '';
+// Chave da API do Google (opcional) para listar pastas do Drive; sem ela usa a página pública da pasta.
+const DRIVE_KEY = import.meta.env.VITE_GOOGLE_API_KEY || '';
 
 const WEATHER_TTL = 30 * 60_000;
 const FEED_TTL = 15 * 60_000;
@@ -60,7 +66,7 @@ export function loadSource(kind, cfg) {
   const src = APP_SOURCES[kind];
   // Demonstração (?demo=play&app=...): dados de exemplo, sem internet.
   if (isDemo()) return Promise.resolve(src.sample(cfg, Date.now()));
-  const urls = src.urls(cfg, { apikey: OPEN_METEO_KEY, now: new Date() });
+  const urls = src.urls(cfg, { apikey: OPEN_METEO_KEY, driveKey: DRIVE_KEY, now: new Date() });
   if (!urls.length) return Promise.reject(new Error('configuração incompleta'));
   return cached(sourceCacheKey(kind, urls), src.ttl, async () => {
     const res = await Promise.allSettled(urls.map((u) => host.fetchText(u)));
@@ -77,6 +83,38 @@ export function useAppData(app) {
   useEffect(() => {
     let alive = true;
     const done = (patch) => alive && setS((x) => ({ ...x, ...patch }));
+    const demo = isDemo();
+    if (kind === 'queue') {
+      if (demo) { done({ data: sampleQueue(), status: null }); return () => { alive = false; }; }
+      const cfg = normalizeQueueConfig(app.config);
+      let last = null;
+      const off = watchLive('queues', app.config.queueId, (q) => {
+        const n = q?.current?.n;
+        // Chamada nova (não a que já estava quando o app abriu): toca e fala.
+        if (last != null && n != null && n !== last && Date.now() - (q.current.at || 0) < 60_000) {
+          if (cfg.sound !== false) dingDong();
+          if (cfg.voice !== false) setTimeout(() => speak(spokenTicket(q.current)), cfg.sound !== false ? 1400 : 0);
+        }
+        last = n ?? last ?? 0;
+        done({ data: q || {}, status: null });
+      });
+      return () => { alive = false; off(); };
+    }
+    if (kind === 'timer') {
+      if (demo) { done({ data: { demoElapsed: 10 + 7 * 60 + 23 }, status: null }); return () => { alive = false; }; }
+      const off = watchLive('timers', app.config.timerId, (state) => done({ data: { state: state || {}, offset: clockOffset() }, status: null }));
+      return () => { alive = false; off(); };
+    }
+    if (kind === 'poll') {
+      if (demo) { done({ data: { tally: sampleTally((app.config.options || []).length || 3) }, status: null }); return () => { alive = false; }; }
+      const off = watchLive('pollTallies', app.config.pollId, (tally) => done({ data: { tally }, status: null }));
+      return () => { alive = false; off(); };
+    }
+    if (kind === 'photowall') {
+      if (demo) { done({ comments: samplePhotos(), status: null }); return () => { alive = false; }; }
+      const off = watchComments(app.config.boardId, (comments) => done({ comments, status: null }));
+      return () => { alive = false; off(); };
+    }
     if (kind === 'comments') {
       const off = watchComments(app.config.boardId, (comments) => done({ comments, status: null }));
       return () => { alive = false; off(); };

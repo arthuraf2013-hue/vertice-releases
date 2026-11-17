@@ -210,3 +210,4 @@ body.vx-cursor button { cursor: pointer !important; }
 /* Video wall: o conteúdo tem o tamanho do wall inteiro; cada TV mostra o seu pedaço. */
 .tv-wall { overflow: hidden; }
 .tv-wall-canvas { position: absolute; }
+.tv-zone-empty { position: absolute; inset: 0; background: #050a1a; }

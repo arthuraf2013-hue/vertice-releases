@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { resolveNow } from '@vertice/shared';
+import { resolveNow, timerAt, timerElapsed } from '@vertice/shared';
+import { beep } from '../services/speak.js';
+import { clockOffset } from '../services/clock.js';
 import { AppView } from '@vertice/shared/apps';
 import { useAppData } from '../services/appData.js';
 
@@ -10,7 +12,7 @@ const timed = (it) => it.type === 'image' || it.type === 'app';
  * Toca a programação: resolve o que vale agora, passa item por item e,
  * a cada troca, confere de novo o horário (troca de faixa sem cortar a mídia no meio).
  */
-export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty, onPlayed }) {
+export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty, onPlayed, volume = 1 }) {
   const defaultFit = manifest?.screen?.display?.fit || 'cover';
   const [cur, setCur] = useState(() => pick(manifest, null));
   const timer = useRef(null);
@@ -108,7 +110,7 @@ export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty,
         </div>
       ) : (
         // Vídeo com fundo desfocado tocaria dois vídeos ao mesmo tempo (pesado na TV box): mostra inteiro.
-        <Video key={cur.n} src={src} fit={fit === 'blur' ? 'contain' : fit} style={adj} loop={!!cur.pinned} muted={cur.item.muted} onEnded={next} />
+        <Video key={cur.n} src={src} fit={fit === 'blur' ? 'contain' : fit} style={adj} loop={!!cur.pinned} muted={cur.item.muted || volume <= 0} volume={volume} onEnded={next} />
       )}
     </div>
   );
@@ -117,6 +119,7 @@ export function Playback({ manifest, cache, cacheVersion, onNowPlaying, onEmpty,
 /** Aplicativo na tela (relógio, clima, notícias, preços…). */
 export function AppItem({ item, cache }) {
   const data = useAppData(item.app);
+  useTimerBeeps(item.app, data.data);
   // Foto da peça do Estúdio: a cópia baixada no aparelho, se já tiver.
   const imageSrc = item.app.image ? cache.src(item.app.image) : null;
   return (
@@ -126,8 +129,10 @@ export function AppItem({ item, cache }) {
   );
 }
 
-function Video({ src, fit, muted, style, loop, onEnded }) {
+function Video({ src, fit, muted, style, loop, onEnded, volume = 1 }) {
   const ref = useRef(null);
+  // Volume por horário (Empresa › Horário de funcionamento).
+  useEffect(() => { if (ref.current) ref.current.volume = Math.min(1, Math.max(0, volume)); }, [volume]);
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
@@ -165,4 +170,21 @@ function peek(manifest, cur) {
   if (!r.items.length) return null;
   const at = r.items.findIndex((it) => it.key === cur.item.key);
   return r.items[(at + 1) % r.items.length];
+}
+
+/** Cronômetro: bipe curto nos 3 últimos segundos de cada fase e bipe longo na troca. */
+function useTimerBeeps(app, data) {
+  const last = useRef({ phase: null, sec: null });
+  useEffect(() => {
+    if (app?.kind !== 'timer' || app.config?.beeps === false) return undefined;
+    const t = setInterval(() => {
+      const el = data?.demoElapsed != null ? null : timerElapsed(app.config, data?.state || {}, Date.now() + clockOffset());
+      const st = timerAt(app.config, el);
+      const prev = last.current;
+      if (prev.phase && st.phase !== prev.phase && st.phase !== 'idle') beep(true);
+      else if ((st.phase === 'work' || st.phase === 'rest' || st.phase === 'prep') && /^00:0[1-3]$|^[1-3]$/.test(st.display) && st.display !== prev.sec) beep(false);
+      last.current = { phase: st.phase, sec: st.display };
+    }, 250);
+    return () => clearInterval(t);
+  }, [app, data]);
 }

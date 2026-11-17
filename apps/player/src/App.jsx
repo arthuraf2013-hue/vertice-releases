@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ORDER_BOARD_DEFAULTS, screenDisplay, ROTATIONS } from '@vertice/shared';
+import { ORDER_BOARD_DEFAULTS, screenDisplay, ROTATIONS, isOpen, volumeAt, alertFor } from '@vertice/shared';
+import { LayoutGrid, ClosedScreen, AlertScreen } from '@vertice/shared/apps';
+import { setClockOffset, clockOffset } from './services/clock.js';
+import { alarm, speak } from './services/speak.js';
 import { createDevice } from './services/device.js';
 import { hasFirebase } from './services/firebase.js';
 import { SystemScreen } from './ui/SystemScreen.jsx';
@@ -70,6 +73,12 @@ function Screen({ state, device, updater, remote, stats, signals }) {
   const display = useMemo(() => screenDisplay(manifest?.screen || {}), [manifest]);
   const geo = useGeometry(display);
   const calibrating = useUntil(manifest?.screen?.calibrateUntil);
+  setClockOffset(state.clockOffset);
+  const now = useTick(5000);
+  const open = isOpen(manifest?.hours, new Date(now));
+  const volume = manifest?.hours ? volumeAt(manifest.hours, new Date(now)) / 100 : 1;
+  const alert = alertFor(manifest?.alert, manifest?.screen?.id, now + clockOffset());
+  useAlertSound(alert);
 
   let body;
   if (phase === 'boot') body = <SystemScreen variant="boot" network={network} />;
@@ -83,12 +92,22 @@ function Screen({ state, device, updater, remote, stats, signals }) {
     const firstSync = state.sync?.status === 'syncing' && state.sync.done === 0 && network?.online === false;
     const content = (
       <>
-        {manifest.wall ? (
+        {!open ? (
+          // Fora do expediente: nada toca (nem conta exibição).
+          <ClosedScreen hours={manifest.hours} />
+        ) : manifest.wall ? (
           <WallPlayback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} clockOffset={state.clockOffset || 0} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
+        ) : manifest.layout ? (
+          <LayoutGrid
+            layout={manifest.layout}
+            logoSrc={manifest.layout.bar?.logo ? cache.src(manifest.layout.bar.logo) : null}
+            main={<Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} volume={volume} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />}
+            zone={(z) => <ZonePlayback items={manifest.layout.zones[z]} screen={manifest.screen} cache={cache} cacheVersion={state.cacheVersion} onPlayed={(it, s) => stats?.record(it, s)} />}
+          />
         ) : (
-          <Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
+          <Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} volume={volume} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
         )}
-        {empty && <SystemScreen variant={firstSync ? 'syncing' : 'empty'} network={network} screenCode={manifest.screen?.code} companyName={manifest.company?.name} />}
+        {open && empty && <SystemScreen variant={firstSync ? 'syncing' : 'empty'} network={network} screenCode={manifest.screen?.code} companyName={manifest.company?.name} />}
       </>
     );
     body = config.mode === 'sidebar' ? (
@@ -103,6 +122,7 @@ function Screen({ state, device, updater, remote, stats, signals }) {
       <div className="tv-stage" style={geo.stage}>
         {body}
         {config.mode === 'overlay' && queue[0] && <OrderOverlay key={chaveDoPronto(queue[0])} order={queue[0]} config={config} onDone={shift} />}
+        {alert && phase !== 'pairing' && !state.licenseBlocked && <AlertScreen alert={alert} />}
         {calibrating && <Calibration display={display} screen={manifest?.screen} />}
       </div>
       <OperatorMenu state={state} updater={updater} remote={remote} openSignal={signals?.open} identifySignal={signals?.identify} />
@@ -173,4 +193,31 @@ function Calibration({ display, screen }) {
       </div>
     </div>
   );
+}
+
+/** Zona do layout: a playlist dela, em repetição, sem som (o som fica com a principal). */
+function ZonePlayback({ items, screen, cache, cacheVersion, onPlayed }) {
+  const m = useMemo(() => ({ screen, slots: [], fallback: items || [] }), [items, screen]);
+  if (!items?.length) return <div className="tv-zone-empty" />;
+  return <Playback manifest={m} cache={cache} cacheVersion={cacheVersion} volume={0} onPlayed={onPlayed} />;
+}
+
+function useTick(ms) {
+  const [t, setT] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setT(Date.now()), ms);
+    return () => clearInterval(id);
+  }, [ms]);
+  return t;
+}
+
+/** Alerta novo: sirene curta e a mensagem falada (uma vez por alerta). */
+function useAlertSound(alert) {
+  const key = alert ? `${alert.id}:${alert.startedAt}` : null;
+  useEffect(() => {
+    if (!key || !alert.sound) return;
+    alarm(0.6);
+    const t = setTimeout(() => speak(`${alert.title}. ${alert.text}`), 1500);
+    return () => clearTimeout(t);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 }

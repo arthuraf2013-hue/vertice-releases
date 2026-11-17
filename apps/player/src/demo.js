@@ -58,6 +58,12 @@ const DEMO_APPS = {
   worldclock: { kind: 'worldclock', config: { zones: ['America/Sao_Paulo', 'America/New_York', 'Europe/Lisbon', 'Asia/Tokyo'], theme: 'night' } },
   quote: { kind: 'quote', config: { title: 'Frase do dia', list: '', theme: 'light' } },
   comments: { kind: 'comments', config: { title: 'Deixe seu recado', question: 'O que você achou do nosso atendimento?', showQr: true, rotateSec: 8, maxShown: 3, boardId: 'demo', link: 'https://vertice.vettasistemas.com.br/comentar?e=demo&m=demo', theme: 'brand' } },
+  queue: { kind: 'queue', config: { title: 'Acompanhe sua senha', types: [{ prefix: 'A', label: 'Normal' }, { prefix: 'P', label: 'Preferencial' }], counters: ['Guichê 1', 'Guichê 2', 'Guichê 3'], queueId: 'demo', theme: 'brand' } },
+  timer: { kind: 'timer', config: { mode: params.get('mode') || 'amrap', minutes: 12, rounds: 8, work: 40, rest: 20, prep: 10, title: 'WOD de hoje', wod: '10 burpees\n15 kettlebell swings 24/16 kg\n20 air squats\n200 m corrida', timerId: 'demo', theme: 'night' } },
+  poll: { kind: 'poll', config: { question: 'Qual sabor de bolo você quer no sábado?', options: ['Chocolate com morango', 'Bolo de rolo', 'Cenoura com calda', 'Macaxeira'], showQr: true, showResults: true, pollId: 'demo', link: 'https://vertice.vettasistemas.com.br/votar?e=demo&m=demo', theme: 'brand' } },
+  photowall: { kind: 'photowall', config: { title: 'Festa de 10 anos', question: 'Mande sua foto e apareça no telão!', showQr: true, rotateSec: 6, boardId: 'demo', link: 'https://vertice.vettasistemas.com.br/comentar?e=demo&m=demo', layout: params.get('layout') === 'single' ? 'single' : 'mosaic', theme: 'night' } },
+  drive: { kind: 'drive', config: { url: 'https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp', seconds: 6, theme: 'night' } },
+  stream: { kind: 'stream', config: { url: 'https://example.com/live/index.m3u8', title: 'Canal da loja' } },
   sheet: { kind: 'sheet', config: { url: 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit#gid=0', title: 'Escala da semana', rows: 8, header: true, theme: 'night' } },
 };
 // Peças do Estúdio (&app=studio&tpl=offer|notice|menu|welcome|event), com uma "foto" desenhada.
@@ -114,6 +120,12 @@ export function demoState(kind) {
     slots,
     fallback: [],
     assets: [],
+    // &zonas=side|split|lshape|full &barra=1: layout em zonas e barra inferior.
+    layout: params.get('zonas') || params.get('barra') ? demoLayout() : null,
+    // &fechado=black|clock|message: fora do expediente.
+    hours: params.get('fechado') ? { enabled: true, days: [], open: '08:00', close: '18:00', closedMode: params.get('fechado'), closedText: 'Estamos fechados. Até amanhã!', volumes: [], volume: 100 } : null,
+    // &alerta=red|amber|blue: alerta urgente por cima de tudo.
+    alert: params.get('alerta') ? { id: 'a1', active: true, title: params.get('alerta') === 'blue' ? 'Loja fechando' : 'Atenção', text: params.get('alerta') === 'blue' ? 'Encerramos o atendimento em 15 minutos. Obrigado pela visita!' : 'Por favor, siga as orientações da equipe e mantenha a calma.', theme: params.get('alerta'), sound: false, startedAt: Date.now() - 2 * MIN, until: Date.now() + 28 * MIN, screenIds: null } : null,
   });
   switch (kind) {
     case 'pairing': return { ...base, phase: 'pairing', code: '4F7K2Q', codeExpiresAt: Date.now() + 27 * MIN, manifest: null };
@@ -125,4 +137,20 @@ export function demoState(kind) {
     case 'board': return { ...base, manifest: manifest('full'), orders, addLater: true };
     default: return { ...base, manifest: manifest('off') };
   }
+}
+
+function appItem(key, app, sec = 30) {
+  return { key, mediaId: key, name: key, type: 'app', url: null, app, durationSec: sec };
+}
+function demoLayout() {
+  const t = params.get('zonas') || 'full';
+  return {
+    id: 'L', name: 'Demo', template: t, sideWidth: 30,
+    zones: {
+      ...(t === 'side' || t === 'lshape' ? { side: [appItem('z-qr', { kind: 'qr', config: { mode: 'wifi', ssid: 'BoaMassa-Clientes', password: 'x', title: 'Wi-Fi grátis', subtitle: 'Aponte a câmera', theme: 'light' } }, 3600)] } : {}),
+      ...(t === 'split' ? { second: [appItem('z-q', DEMO_APPS.queue, 3600)] } : {}),
+      ...(t === 'lshape' ? { foot: [appItem('z-tk', { kind: 'clock', config: { message: '', showDate: true, theme: 'brand' } }, 3600)] } : {}),
+    },
+    bar: params.get('barra') ? { enabled: true, lines: ['Encomendas de Natal abertas até 20/12', 'Pix, cartão e vale-refeição', 'Siga @padariaboamassa'], speed: 'normal', clock: true, date: true, title: 'Boa Massa', theme: params.get('barra') === '1' ? 'brand' : params.get('barra'), logo: null } : null,
+  };
 }
