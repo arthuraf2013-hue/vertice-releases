@@ -14,8 +14,17 @@
     <section class="cm-card" data-view="form" hidden>
       <h1 class="cm-q" data-question></h1>
       <form class="cm-form" novalidate>
-        <label class="cm-field">
-          <span>Seu comentário</span>
+        <div class="cm-field cm-photo" data-photo hidden>
+          <span>Sua foto</span>
+          <label class="cm-photo-pick">
+            <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" />
+            <img data-photo-preview alt="" hidden />
+            <b data-photo-label>Tirar ou escolher foto</b>
+          </label>
+          <small>Ela chega reduzida e só aparece na TV depois que a loja aprovar.</small>
+        </div>
+        <label class="cm-field" data-text-field>
+          <span data-text-label>Seu comentário</span>
           <textarea name="text" rows="5" maxlength="200" required placeholder="Escreva aqui"></textarea>
           <small class="cm-count" data-count>0 de 200</small>
         </label>

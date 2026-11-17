@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Anuncie nas nossas telas</title>
+  <meta name="description" content="Pontos de mídia indoor, público estimado e pacotes de anúncio." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body class="md">
+  <main class="md-main">
+    <header class="md-head">
+      <p class="md-company" data-company>Carregando…</p>
+      <h1 data-title></h1>
+      <p class="md-intro" data-intro></p>
+      <div class="md-stats" data-stats hidden>
+        <div><b data-screens>0</b><span>telas</span></div>
+        <div><b data-points>0</b><span>pontos</span></div>
+        <div data-aud-box><b data-audience>0</b><span>pessoas por dia</span></div>
+      </div>
+      <a class="md-cta" data-wa hidden target="_blank" rel="noreferrer">Pedir uma proposta no WhatsApp</a>
+    </header>
+    <section class="md-sec" data-packages-sec hidden>
+      <h2>Pacotes</h2>
+      <div class="md-packages" data-packages></div>
+      <p class="md-note">Valores por anunciante, pelo período do pacote, em todas as telas da rede. Inserções contadas por tela.</p>
+    </section>
+    <section class="md-sec" data-points-sec hidden>
+      <h2>Onde seu anúncio aparece</h2>
+      <div class="md-points" data-point-list></div>
+    </section>
+    <section class="md-sec md-empty" data-off hidden>
+      <h2>Catálogo indisponível</h2>
+      <p>Esta rede não está mostrando o catálogo agora.</p>
+    </section>
+  </main>
+  <footer class="md-foot">Mídia indoor com o <a href="/">Vértice</a>. As exibições são comprovadas por relatório de cada tela.</footer>
+  <script type="module" src="/src/midia.js"></script>
+</body>
+</html>

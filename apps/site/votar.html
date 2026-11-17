@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Vote na enquete</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body class="cm">
+  <main class="cm-main" aria-live="polite">
+    <p class="cm-store" data-store>Carregando…</p>
+
+    <section class="cm-card" data-view="form" hidden>
+      <h1 class="cm-q" data-question></h1>
+      <div class="vt-options" role="radiogroup" data-options></div>
+      <p class="cm-error" data-error hidden></p>
+      <button class="cm-send" type="button" data-send disabled>Votar</button>
+      <p class="cm-legal">Um voto por aparelho. Não pedimos nome nem contato. <a href="/privacidade">Política de privacidade</a></p>
+    </section>
+
+    <section class="cm-card cm-done" data-view="done" hidden>
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M7.5 12.5l3 3 6-6.5" /></svg>
+      <h1 data-done-title>Voto registrado</h1>
+      <p>O resultado aparece ao vivo na TV.</p>
+      <div class="vt-res" data-results></div>
+    </section>
+
+    <section class="cm-card cm-done" data-view="closed" hidden>
+      <h1>Votação encerrada</h1>
+      <p data-closed-text>Esta enquete não está recebendo votos agora.</p>
+    </section>
+  </main>
+  <footer class="cm-foot">Enquete do <a href="/">Vértice</a></footer>
+  <script type="module" src="/src/votar.js"></script>
+</body>
+</html>
