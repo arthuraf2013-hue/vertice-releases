@@ -115,7 +115,8 @@ service cloud.firestore {
       allow create: if isVetta() || (signedIn()
         && (!exists(settingsPath()) || get(settingsPath()).data.get('signupOpen', true) == true)
         && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'plan', 'screenLimit', 'storageQuotaMB',
-             'storageUsedBytes', 'screenSeq', 'screenCount', 'status', 'trialEndsAt', 'createdAt', 'phone', 'city', 'source'])
+             'storageUsedBytes', 'screenSeq', 'screenCount', 'status', 'trialEndsAt', 'createdAt', 'phone', 'city', 'source', 'referredBy'])
+        && request.resource.data.get('referredBy', '') is string && request.resource.data.get('referredBy', '').size() <= 12
         && request.resource.data.ownerUid == uid()
         && request.resource.data.plan == 'start'
         && request.resource.data.screenLimit == 3
@@ -128,7 +129,9 @@ service cloud.firestore {
         && request.resource.data.trialEndsAt <= request.time + duration.value(
              (exists(settingsPath()) ? get(settingsPath()).data.get('trialDays', 14) : 14) + 1, 'd'));
       allow update: if isVetta()
-        || (hasRole(cid, 'admin') && changesOnly(['name', 'cnpj', 'phone', 'city', 'screenSeq', 'alerts']))
+        || (hasRole(cid, 'admin') && changesOnly(['name', 'cnpj', 'phone', 'city', 'screenSeq', 'alerts', 'hours', 'catalog']))
+        // Alerta urgente: quem edita conteúdo também pode mandar e encerrar.
+        || (hasRole(cid, 'editor') && changesOnly(['alert']) && request.resource.data.alert is map)
         || (hasRole(cid, 'editor') && changesOnly(['storageUsedBytes']))
         // Contador de telas: só muda junto com a criação ou a exclusão daquela tela (screenOp = id dela),
         // e nunca passa do limite do plano.
@@ -205,6 +208,140 @@ service cloud.firestore {
       }
 
       // Video walls: grupo de telas formando uma imagem só. O painel compila no manifesto de cada tela.
+      // Layouts em zonas e barra inferior.
+      match /layouts/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
+      // Propostas de mídia indoor (comercial).
+      match /proposals/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
+      // Registro de atividades: cada pessoa grava o próprio registro; ninguém altera nem apaga.
+      match /audit/{id} {
+        allow read: if hasRole(cid, 'admin');
+        allow create: if isMember(cid)
+          && request.resource.data.keys().hasOnly(['action', 'area', 'targetId', 'targetName', 'fields', 'uid', 'byName', 'at'])
+          && request.resource.data.uid == uid()
+          && request.resource.data.at == request.time
+          && request.resource.data.area is string && request.resource.data.area.size() <= 80
+          && request.resource.data.get('targetName', '') is string && request.resource.data.get('targetName', '').size() <= 80
+          && request.resource.data.byName is string && request.resource.data.byName.size() <= 80;
+        allow update, delete: if false;
+      }
+
+      // Chamada de senhas: qualquer pessoa da empresa (inclusive "visualizador", ex.: recepção) chama.
+      match /queues/{qid} {
+        allow read: if isMember(cid) || (isAnyScreen(cid) && licensed(cid));
+        allow create, delete: if hasRole(cid, 'editor');
+        allow update: if hasRole(cid, 'editor')
+          || (isMember(cid) && changesOnly(['seq', 'current', 'history', 'updatedAt'])
+              && request.resource.data.history is list && request.resource.data.history.size() <= 6);
+      }
+
+      // Cronômetro: qualquer pessoa da empresa inicia, pausa e zera.
+      match /timers/{tid} {
+        allow read: if isMember(cid) || (isAnyScreen(cid) && licensed(cid));
+        allow create, delete: if hasRole(cid, 'editor');
+        allow update: if hasRole(cid, 'editor')
+          || (isMember(cid) && changesOnly(['status', 'startedAt', 'pausedAt', 'pausedMs', 'updatedAt'])
+              && request.resource.data.status in ['running', 'paused', 'stopped']);
+      }
+
+      // Enquete: pergunta pública; um voto por aparelho e por rodada; o placar sobe 1 no mesmo lote.
+      match /polls/{pid} {
+        allow get: if true;
+        allow list: if isMember(cid);
+        allow create, update: if hasRole(cid, 'editor')
+          && request.resource.data.keys().hasOnly(['question', 'options', 'open', 'round', 'companyName', 'theme', 'updatedAt'])
+          && request.resource.data.question is string && request.resource.data.question.size() <= 120
+          && request.resource.data.options is list && request.resource.data.options.size() >= 2 && request.resource.data.options.size() <= 6
+          && request.resource.data.round is int;
+        allow delete: if hasRole(cid, 'editor');
+
+        match /votes/{vid} {
+          function pollData() { return get(/databases/$(database)/documents/companies/$(cid)/polls/$(pid)).data; }
+          function tallyPath() { return /databases/$(database)/documents/companies/$(cid)/pollTallies/$(pid); }
+          allow read: if isMember(cid);
+          allow create: if signedIn()
+            && vid == string(pollData().round) + '_' + uid()
+            && request.resource.data.keys().hasOnly(['option', 'at'])
+            && request.resource.data.at == request.time
+            && request.resource.data.option is int
+            && request.resource.data.option >= 0 && request.resource.data.option < pollData().options.size()
+            && pollData().get('open', false) == true
+            && getAfter(tallyPath()).data.total == get(tallyPath()).data.get('total', 0) + 1
+            && licensed(cid);
+          allow delete: if hasRole(cid, 'editor');
+        }
+      }
+      // Pesquisa de satisfação: questionário público; uma resposta por aparelho e por rodada.
+      match /surveys/{sid} {
+        allow get: if true;
+        allow list: if isMember(cid);
+        allow create, update: if hasRole(cid, 'editor')
+          && request.resource.data.keys().hasOnly(['title', 'questions', 'open', 'round', 'companyName', 'theme', 'updatedAt'])
+          && request.resource.data.questions is list && request.resource.data.questions.size() >= 1 && request.resource.data.questions.size() <= 8
+          && request.resource.data.round is int;
+        allow delete: if hasRole(cid, 'editor');
+
+        match /responses/{rid} {
+          function sv() { return get(/databases/$(database)/documents/companies/$(cid)/surveys/$(sid)).data; }
+          function okA(a, k) {
+            return !(k in a) || (a[k] is int && a[k] >= 0 && a[k] <= 10) || (a[k] is string && a[k].size() > 0 && a[k].size() <= 500);
+          }
+          function okAnswers(a) {
+            return a is map && a.size() >= 1
+              && a.keys().hasOnly(['q0', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7'])
+              && okA(a, 'q0') && okA(a, 'q1') && okA(a, 'q2') && okA(a, 'q3') && okA(a, 'q4') && okA(a, 'q5') && okA(a, 'q6') && okA(a, 'q7');
+          }
+          allow read: if hasRole(cid, 'editor');
+          allow create: if signedIn()
+            && rid == string(sv().round) + '_' + uid()
+            && request.resource.data.keys().hasOnly(['answers', 'at'])
+            && request.resource.data.at == request.time
+            && okAnswers(request.resource.data.answers)
+            && sv().get('open', false) == true
+            && licensed(cid);
+          allow update: if false;
+          allow delete: if hasRole(cid, 'editor');
+        }
+      }
+
+      // CRM de anunciantes e clientes: só a equipe da empresa.
+      match /leads/{id} {
+        allow read: if isMember(cid);
+        allow write: if hasRole(cid, 'editor');
+      }
+
+      // Pedidos da Loja: a empresa vê os seus; quem cria e confirma é o servidor (Asaas).
+      match /storeOrders/{id} {
+        allow read: if hasRole(cid, 'admin');
+        allow write: if false;
+      }
+
+      match /pollTallies/{pid} {
+        function voteAfter() {
+          return /databases/$(database)/documents/companies/$(cid)/polls/$(pid)/votes/$(string(resource.data.round) + '_' + uid());
+        }
+        function okVote() {
+          let k = 'o' + string(getAfter(voteAfter()).data.option);
+          return signedIn()
+            && !exists(voteAfter()) && existsAfter(voteAfter())
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['counts', 'total'])
+            && request.resource.data.total == resource.data.get('total', 0) + 1
+            && request.resource.data.counts.diff(resource.data.get('counts', {})).affectedKeys().hasOnly([k])
+            && request.resource.data.counts[k] == resource.data.get('counts', {}).get(k, 0) + 1;
+        }
+        allow get: if true;
+        allow create: if hasRole(cid, 'editor');
+        allow update: if hasRole(cid, 'editor') || okVote();
+        allow delete: if hasRole(cid, 'editor');
+      }
+
       match /videowalls/{id} {
         allow read: if isMember(cid);
         allow write: if hasRole(cid, 'editor');
@@ -302,7 +439,8 @@ service cloud.firestore {
         allow get: if true;
         allow list: if isMember(cid);
         allow create, update: if hasRole(cid, 'editor')
-          && request.resource.data.keys().hasOnly(['title', 'question', 'open', 'autoApprove', 'companyName', 'theme', 'updatedAt'])
+          && request.resource.data.keys().hasOnly(['title', 'question', 'open', 'autoApprove', 'companyName', 'theme', 'kind', 'updatedAt'])
+          && request.resource.data.get('kind', 'comments') in ['comments', 'photos']
           && request.resource.data.title is string && request.resource.data.title.size() <= 60
           && request.resource.data.question is string && request.resource.data.question.size() <= 140
           && request.resource.data.open is bool;
@@ -317,11 +455,17 @@ service cloud.firestore {
           function newComment() {
             let d = request.resource.data;
             let pattern = settings().get('blockPattern', 'a^');
+            let photos = boardData().get('kind', 'comments') == 'photos';
             return signedIn()
-              && d.keys().hasOnly(['name', 'text', 'status', 'createdAt', 'uid'])
+              && d.keys().hasOnly(['name', 'text', 'status', 'createdAt', 'uid', 'photo'])
               && d.uid == uid()
               && d.createdAt == request.time
-              && d.text is string && d.text.size() >= 2 && d.text.size() <= 200
+              && d.text is string && d.text.size() <= 200
+              // Mural de fotos: a foto é obrigatória e precisa ser deste mural (enviada pelo servidor de mídias).
+              && (photos
+                  ? (d.get('photo', null) is string && d.photo.size() <= 300
+                     && d.photo.matches('https?://[^/]+/m/' + cid + '/p-' + bid + '-[A-Za-z0-9_-]+[.]jpg'))
+                  : (!('photo' in d) && d.text.size() >= 2))
               && d.name is string && d.name.size() <= 30
               && boardData().get('open', false) == true
               // Limite por aparelho: o contador (commentLimits) muda no mesmo lote e aponta para este comentário.
@@ -376,6 +520,12 @@ service cloud.firestore {
 
     // Limite de envios do mural de comentários, por usuário anônimo: até 3 a cada 10 minutos.
     // Cada envio troca lastId (o id do comentário) e lastAt (hora do servidor) no mesmo lote.
+    // Catálogo de mídia indoor: página pública /midia; só o admin da empresa publica.
+    match /publicCatalogs/{cid} {
+      allow get: if true;
+      allow write: if hasRole(cid, 'admin');
+    }
+
     match /commentLimits/{limitUid} {
       function okLimit() {
         let d = request.resource.data;

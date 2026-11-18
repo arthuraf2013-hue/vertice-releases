@@ -128,6 +128,7 @@ export function useAppData(app) {
     }
     if (kind === 'weather') loadWeather(app.config).then((weather) => done({ weather, status: null }), () => done({ status: 'error' }));
     else if (kind === 'rss') loadFeed(app.config).then((feed) => done({ feed, status: null }), () => done({ status: 'error' }));
+    else if (kind === 'sheet' && demo) done({ table: sheetTable('Loja,Vendas,Meta\nCentro,"R$ 48.200","R$ 45.000"\nBoa Viagem,"R$ 41.900","R$ 44.000"\nCasa Forte,"R$ 37.350","R$ 35.000"\nOlinda,"R$ 29.800","R$ 30.000"\nCaruaru,"R$ 26.400","R$ 22.000"\nPetrolina,"R$ 21.100","R$ 24.000"', { header: true, rows: 10 }), status: null });
     else if (kind === 'sheet') loadSheet(app.config).then((table) => done({ table, status: null }), () => done({ status: 'error' }));
     else done({ status: null });
     return () => { alive = false; };

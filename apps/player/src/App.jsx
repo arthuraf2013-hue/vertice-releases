@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ORDER_BOARD_DEFAULTS, screenDisplay, ROTATIONS, isOpen, volumeAt, alertFor } from '@vertice/shared';
-import { LayoutGrid, ClosedScreen, AlertScreen } from '@vertice/shared/apps';
+import { LayoutGrid, ClosedScreen, AlertScreen, useAudio } from '@vertice/shared/apps';
 import { setClockOffset, clockOffset } from './services/clock.js';
 import { alarm, speak } from './services/speak.js';
 import { createDevice } from './services/device.js';
@@ -79,6 +79,10 @@ function Screen({ state, device, updater, remote, stats, signals }) {
   const volume = manifest?.hours ? volumeAt(manifest.hours, new Date(now)) / 100 : 1;
   const alert = alertFor(manifest?.alert, manifest?.screen?.id, now + clockOffset());
   useAlertSound(alert);
+  // O que está tocando agora (para baixar o som ambiente quando entra um vídeo com som).
+  const [nowItem, setNowItem] = useState(null);
+  const onNowPlaying = (it) => { setNowItem(it); device?.setNowPlaying(it); };
+  useAmbient(manifest?.ambient, { enabled: open && !alert && !state.licenseBlocked && phase !== 'pairing', duck: hasSound(nowItem), volume });
 
   let body;
   if (phase === 'boot') body = <SystemScreen variant="boot" network={network} />;
@@ -96,16 +100,16 @@ function Screen({ state, device, updater, remote, stats, signals }) {
           // Fora do expediente: nada toca (nem conta exibição).
           <ClosedScreen hours={manifest.hours} />
         ) : manifest.wall ? (
-          <WallPlayback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} clockOffset={state.clockOffset || 0} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
+          <WallPlayback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} clockOffset={state.clockOffset || 0} onNowPlaying={onNowPlaying} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
         ) : manifest.layout ? (
           <LayoutGrid
             layout={manifest.layout}
             logoSrc={manifest.layout.bar?.logo ? cache.src(manifest.layout.bar.logo) : null}
-            main={<Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} volume={volume} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />}
+            main={<Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} volume={volume} onNowPlaying={onNowPlaying} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />}
             zone={(z) => <ZonePlayback items={manifest.layout.zones[z]} screen={manifest.screen} cache={cache} cacheVersion={state.cacheVersion} onPlayed={(it, s) => stats?.record(it, s)} />}
           />
         ) : (
-          <Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} volume={volume} onNowPlaying={(it) => device?.setNowPlaying(it)} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
+          <Playback manifest={manifest} cache={cache} cacheVersion={state.cacheVersion} volume={volume} onNowPlaying={onNowPlaying} onEmpty={setEmpty} onPlayed={(it, s) => stats?.record(it, s)} />
         )}
         {open && empty && <SystemScreen variant={firstSync ? 'syncing' : 'empty'} network={network} screenCode={manifest.screen?.code} companyName={manifest.company?.name} />}
       </>
@@ -212,6 +216,25 @@ function useTick(ms) {
 }
 
 /** Alerta novo: sirene curta e a mensagem falada (uma vez por alerta). */
+/** Mídia com som próprio: vídeo sem mudo, YouTube, cinema, TV ao vivo ou a própria rádio. */
+function hasSound(it) {
+  if (!it) return false;
+  if (it.type === 'video') return !it.muted;
+  if (it.type !== 'app') return false;
+  const k = it.app?.kind;
+  const c = it.app?.config || {};
+  if (k === 'radio') return true;
+  if (k === 'youtube' || k === 'cinema') return c.muted === false;
+  if (k === 'stream') return !c.muted;
+  return false;
+}
+
+/** Rádio de fundo: volume da tela × volume do horário; quase mudo enquanto outra mídia tem som. */
+function useAmbient(ambient, { enabled, duck, volume }) {
+  const level = ((ambient?.volume || 40) / 100) * (volume ?? 1);
+  useAudio(enabled ? ambient?.url : null, { enabled: !!(enabled && ambient?.url), volume: duck ? 0 : level, muted: duck });
+}
+
 function useAlertSound(alert) {
   const key = alert ? `${alert.id}:${alert.startedAt}` : null;
   useEffect(() => {

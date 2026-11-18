@@ -60,6 +60,14 @@ export function callNumber(q = {}, { prefix, number, counter, digits = 3, at = D
   return { current, history: pushHistory(q, current) };
 }
 
+/** Chama pelo nome (consultório, salão, restaurante): a TV mostra e fala o nome. */
+export function callName(q = {}, { name, counter, at = Date.now() }) {
+  const clean = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (!clean) return null;
+  const current = { code: clean, name: clean, prefix: '', number: 0, counter: counter || '', at, n: (q.current?.n || 0) + 1 };
+  return { current, history: pushHistory(q, current) };
+}
+
 /** Chama de novo a senha atual (a TV toca o aviso outra vez). */
 export function callAgain(q = {}, { counter, at = Date.now() } = {}) {
   if (!q.current) return null;
@@ -70,6 +78,7 @@ export function callAgain(q = {}, { counter, at = Date.now() } = {}) {
 export function spokenTicket(cur) {
   if (!cur) return '';
   const where = cur.counter ? `, ${cur.counter}` : '';
+  if (cur.name) return `${cur.name}${where}`;
   return `Senha ${cur.prefix.split('').join(' ')} ${cur.number}${where}`;
 }
 

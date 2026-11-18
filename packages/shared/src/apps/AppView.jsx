@@ -9,6 +9,12 @@ import {
   OnThisDay, WorldClock, Quote, Comments,
 } from './DataApps.jsx';
 import { QueueView, TimerView, PollView, PhotoWallView, StreamView, DriveView } from './LiveApps.jsx';
+import {
+  LotteryView, HoroscopeView, QuizView, CinemaView, AgroView, TributeView, ClassesView, FitnessView, RoomView, SurveyView,
+  PowerBiView, HtmlView, RadioView,
+} from './MoreApps.jsx';
+import { youtubeSourceUrl, clockDate, sheetSeries } from '../more.js';
+export { useAudio } from './MoreApps.jsx';
 export { LayoutGrid, BottomBar, ClosedScreen, AlertScreen } from './Signage.jsx';
 
 /**
@@ -24,12 +30,16 @@ export function AppView({ app, weather = null, feed = null, table = null, data =
   if (!app || !APP_KINDS[app.kind]) return <div className="vxa vxa-empty" />;
   const c = app.config || {};
   if (app.kind === 'youtube') {
-    const src = youtubeEmbedUrl(c.url, { muted: c.muted !== false });
+    const src = c.source === 'playlist' || c.source === 'live' ? youtubeSourceUrl({ ...c, muted: c.muted !== false }) : youtubeEmbedUrl(c.url, { muted: c.muted !== false });
     return src
       ? <iframe className="vxa-frame" src={src} title="YouTube" allow="autoplay; encrypted-media" referrerPolicy="strict-origin-when-cross-origin" />
       : <Missing text="Link do YouTube inválido" />;
   }
   if (app.kind === 'stream') return <StreamView c={c} preview={preview} />;
+  if (app.kind === 'powerbi') return <PowerBiView c={c} now={now} preview={preview} />;
+  if (app.kind === 'html') return <HtmlView c={c} />;
+  if (app.kind === 'cinema') return <CinemaView c={c} now={now} preview={preview} />;
+  const image = imageSrc || app.image?.url || null;
   if (app.kind === 'web') {
     const src = safeHttpUrl(c.url);
     return src ? <WebFrame src={src} reloadMin={Number(c.reloadMin) || 0} /> : <Missing text="Endereço do site inválido" />;
@@ -47,7 +57,7 @@ export function AppView({ app, weather = null, feed = null, table = null, data =
           {app.kind === 'price' && <Price data={app.data} portrait={portrait} />}
           {app.kind === 'qr' && <Qr c={c} portrait={portrait} />}
           {app.kind === 'sheet' && <Sheet c={c} table={table} status={status} portrait={portrait} />}
-          {app.kind === 'studio' && <Studio c={c} image={imageSrc || app.image?.url || null} portrait={portrait} />}
+          {app.kind === 'studio' && <Studio c={c} image={image} portrait={portrait} />}
           {app.kind === 'rain' && <Rain c={c} d={data} status={status} portrait={portrait} />}
           {app.kind === 'air' && <Air c={c} d={data} status={status} portrait={portrait} />}
           {app.kind === 'sunmoon' && <SunMoon c={c} d={data} status={status} portrait={portrait} />}
@@ -69,6 +79,16 @@ export function AppView({ app, weather = null, feed = null, table = null, data =
           {app.kind === 'queue' && <QueueView c={c} d={data} portrait={portrait} />}
           {app.kind === 'timer' && <TimerView c={c} d={data} now={now} portrait={portrait} />}
           {app.kind === 'drive' && <DriveView c={c} d={data} status={status} now={now} />}
+          {app.kind === 'lottery' && <LotteryView c={c} d={data} status={status} now={now} portrait={portrait} />}
+          {app.kind === 'horoscope' && <HoroscopeView c={c} now={now} portrait={portrait} />}
+          {app.kind === 'quiz' && <QuizView c={c} now={now} portrait={portrait} demoElapsed={preview ? 4 : undefined} />}
+          {app.kind === 'agro' && <AgroView c={c} d={data} status={status} portrait={portrait} />}
+          {app.kind === 'tribute' && <TributeView c={c} image={image} portrait={portrait} />}
+          {app.kind === 'classes' && <ClassesView c={c} now={now} portrait={portrait} />}
+          {app.kind === 'fitness' && <FitnessView c={c} now={now} image={image} />}
+          {app.kind === 'room' && <RoomView c={c} d={data} status={status} now={now} portrait={portrait} />}
+          {app.kind === 'survey' && <SurveyView c={c} now={now} portrait={portrait} />}
+          {app.kind === 'radio' && <RadioView c={c} image={image} preview={preview} />}
         </div>
       )}
     </Stage>
@@ -137,8 +157,19 @@ function useClock(now) {
 function Clock({ c, now }) {
   const d = useClock(now);
   const p = (n) => String(n).padStart(2, '0');
-  const raw = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const date = raw.charAt(0).toUpperCase() + raw.slice(1);
+  const date = clockDate(d, c.dateFormat || 'long');
+  if (c.style === 'analog' || c.style === 'both') {
+    return (
+      <div className={`vxa-clock-an ${c.style === 'both' ? 'is-both' : ''}`}>
+        <AnalogClock d={d} seconds={!!c.showSeconds} />
+        <div className="vxa-clock-side">
+          {c.style === 'both' && <div className="vxa-clock-time vxa-clock-time-sm">{p(d.getHours())}:{p(d.getMinutes())}</div>}
+          {c.showDate !== false && <div className="vxa-clock-date">{date}</div>}
+          {c.message && <div className="vxa-clock-msg">{c.message}</div>}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="vxa-center">
       <div className="vxa-clock-time">
@@ -148,6 +179,25 @@ function Clock({ c, now }) {
       {c.showDate !== false && <div className="vxa-clock-date">{date}</div>}
       {c.message && <div className="vxa-clock-msg">{c.message}</div>}
     </div>
+  );
+}
+
+/** Relógio de ponteiros desenhado (SVG): marcas das horas, ponteiros e o de segundos na cor de destaque. */
+function AnalogClock({ d, seconds }) {
+  const h = (d.getHours() % 12) + d.getMinutes() / 60;
+  const m = d.getMinutes() + d.getSeconds() / 60;
+  const hand = (deg, len, w, color) => <line x1="0" y1="0" x2="0" y2={-len} stroke={color} strokeWidth={w} strokeLinecap="round" transform={`rotate(${deg})`} />;
+  return (
+    <svg className="vxa-analog" viewBox="-110 -110 220 220" aria-label={`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`}>
+      <circle r="104" fill="none" stroke="currentColor" strokeOpacity=".18" strokeWidth="4" />
+      {Array.from({ length: 60 }, (_, i) => (
+        <line key={i} x1="0" y1={i % 5 ? -94 : -86} x2="0" y2="-100" stroke="currentColor" strokeOpacity={i % 5 ? 0.35 : 0.9} strokeWidth={i % 5 ? 1.2 : 3.5} transform={`rotate(${i * 6})`} />
+      ))}
+      {hand(h * 30, 52, 7, 'currentColor')}
+      {hand(m * 6, 80, 4.5, 'currentColor')}
+      {seconds && hand(d.getSeconds() * 6, 88, 1.8, 'var(--vxa-accent)')}
+      <circle r="6" fill="var(--vxa-accent)" />
+    </svg>
   );
 }
 
@@ -366,6 +416,7 @@ function Sheet({ c, table, status, portrait }) {
       </div>
     );
   }
+  if (c.mode === 'bars' || c.mode === 'ranking' || c.mode === 'kpis') return <SheetChart c={c} table={table} portrait={portrait} />;
   const n = table.rows.length + (table.head ? 1 : 0);
   const avail = (portrait ? 1920 : 1080) - 140 - (c.title ? 170 : 0);
   const fs = Math.max(22, Math.min(56, Math.floor(avail / (n * 1.9))));
@@ -376,6 +427,47 @@ function Sheet({ c, table, status, portrait }) {
         {table.head && <thead><tr>{table.head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>}
         <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((cell, j) => <td key={j}>{cell}</td>)}</tr>)}</tbody>
       </table>
+    </div>
+  );
+}
+
+/** Planilha como gráfico de barras, ranking (maior para menor, com medalhas) ou cartões de indicador com meta. */
+function SheetChart({ c, table, portrait }) {
+  const ranking = c.mode === 'ranking';
+  const { rows } = sheetSeries(table, { sort: ranking, max: c.mode === 'kpis' ? (portrait ? 6 : 6) : Math.min(12, Number(c.rows) || 10) });
+  if (c.mode === 'kpis') {
+    return (
+      <div className="vxa-dx">
+        {c.title && <header className="vxa-dx-head"><div><div className="vxa-dx-title">{c.title}</div></div></header>}
+        <div className={`vxa-kpis ${portrait ? 'col' : ''}`}>
+          {rows.map((r) => (
+            <div key={r.label} className={`vxa-kpi ${r.reached === true ? 'is-ok' : r.reached === false ? 'is-bad' : ''}`}>
+              <span className="vxa-kpi-label">{r.label}</span>
+              <b className="vxa-kpi-value">{r.raw}</b>
+              {r.goal != null && <span className="vxa-kpi-goal">Meta: {r.goalRaw}<i style={{ width: `${Math.min(100, (r.value / (r.goal || 1)) * 100)}%` }} /></span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  const medal = ['#E3B23C', '#B9C2CC', '#C77D3A'];
+  return (
+    <div className="vxa-dx">
+      {c.title && <header className="vxa-dx-head"><div><div className="vxa-dx-title">{c.title}</div></div></header>}
+      <div className="vxa-bars">
+        {rows.map((r, i) => (
+          <div key={r.label} className="vxa-bar-row">
+            {ranking && <span className="vxa-bar-pos" style={i < 3 ? { background: medal[i], color: '#1A1A1A' } : undefined}>{i + 1}</span>}
+            <span className="vxa-bar-label">{r.label}</span>
+            <div className="vxa-bar-track">
+              <div className="vxa-bar-fill" style={{ width: `${Math.max(2, r.pct)}%` }} />
+              {r.goal != null && <i className="vxa-bar-goal" style={{ left: `${Math.min(100, (r.goal / (Math.max(...rows.map((x) => Math.max(x.value, x.goal ?? 0))) || 1)) * 100)}%` }} />}
+            </div>
+            <b className="vxa-bar-value">{r.raw}</b>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

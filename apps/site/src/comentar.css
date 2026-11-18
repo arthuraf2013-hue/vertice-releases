@@ -54,3 +54,18 @@ textarea:focus, input:focus { outline: none; border-color: var(--night); backgro
 .vt-res-row i { grid-column: 1 / -1; height: 10px; border-radius: 99px; background: rgba(10, 26, 68, .1); overflow: hidden; }
 .vt-res-row i b { display: block; height: 100%; background: #1160d6; border-radius: 99px; }
 .vt-res-row.is-mine span::after { content: " (seu voto)"; font-weight: 500; opacity: .65; }
+
+/* Pesquisa de satisfação */
+.ps-questions { display: flex; flex-direction: column; gap: 22px; }
+.ps-q { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ps-q legend { font: 700 17px/1.3 var(--display); padding: 0; margin-bottom: 10px; }
+.ps-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.ps-choice { min-width: 44px; min-height: 44px; border-radius: 12px; border: 2px solid rgba(10, 26, 68, .14); background: #fff; font: 700 16px/1 var(--display); color: inherit; cursor: pointer; padding: 0 10px; }
+.ps-choice[aria-pressed="true"] { border-color: #1160d6; background: rgba(17, 96, 214, .1); color: #0b47a1; }
+.ps-choices.is-nps { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; }
+.ps-choices.is-nps .ps-choice { min-width: 0; padding: 0; font-size: 15px; }
+.ps-scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.ps-choices.is-stars .ps-choice { font-size: 28px; color: #c9ced6; border: 0; background: none; min-width: 48px; }
+.ps-choices.is-stars .ps-choice[aria-pressed="true"] { color: var(--gold); background: none; }
+.ps-choices.is-list { flex-direction: column; }
+.ps-choices.is-list .ps-choice { text-align: left; padding: 14px 16px; font: 600 16px/1.25 var(--sans); }

@@ -156,6 +156,7 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
             status: 'trial',
             trialEndsAt: Timestamp.fromMillis(Date.now() + days * 86400000 - 60000),
             source: 'cadastro',
+            ...(referralFromBrowser() ? { referredBy: referralFromBrowser() } : {}),
             ...(phone ? { phone } : {}),
             ...(city ? { city } : {}),
             createdAt: serverTimestamp(),
@@ -307,6 +308,18 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
       });
     },
 
+    /** Loja: cria o pedido e a cobrança no Asaas (serviço da Vetta); devolve o link da fatura. */
+    async storeCheckout(companyId, input) {
+      if (!mediaBase) throw new Error('A loja precisa do servidor da Vetta configurado.');
+      const res = await fetch(`${mediaBase}/v1/loja/${companyId}/comprar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${await idToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await mediaError(res));
+      return res.json();
+    },
+
     /** Textos de peça com IA (servidor de mídias; a chave fica lá). */
     async aiText(companyId, input) {
       if (!mediaBase) throw new Error('A IA precisa do servidor de mídias configurado.');
@@ -347,4 +360,13 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
       }
     },
   };
+}
+
+/** Código de indicação guardado pelo site (?ref=) ou vindo no endereço do painel. */
+function referralFromBrowser() {
+  try {
+    const q = new URLSearchParams(location.search).get('ref') || new URLSearchParams(location.hash.split('?')[1] || '').get('ref');
+    const v = (q || localStorage.getItem('vx-ref') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+    return v || '';
+  } catch { return ''; }
 }

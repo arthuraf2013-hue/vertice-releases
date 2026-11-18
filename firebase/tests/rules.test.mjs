@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import {
   doc, setDoc, getDoc, updateDoc, deleteDoc, writeBatch, collection, getDocs, query, where,
-  serverTimestamp, Timestamp, runTransaction, collectionGroup,
+  serverTimestamp, Timestamp, runTransaction, collectionGroup, increment,
 } from 'firebase/firestore';
+import assert from 'node:assert/strict';
 
 let env;
 const CID = 'acme';
@@ -475,4 +476,190 @@ test('mural: equipe modera; a TV lê só os aprovados', async () => {
   await assertSucceeds(deleteDoc(doc(as('editor'), `${BOARD}/comments/p1`)));
   // Outra empresa não vê nada.
   await assertFails(getDocs(collection(as('x'), `${BOARD}/comments`)));
+});
+
+/* ---------------- Recursos novos (zonas, alerta, senhas, cronômetro, enquete, fotos, auditoria, catálogo) ---------------- */
+
+test('alerta urgente: editor envia e encerra; leitor não; editor não mexe no resto da empresa', async () => {
+  await seedCompany();
+  const alert = { active: true, id: 'a1', title: 'Atenção', text: 'Teste', theme: 'red', sound: true, startedAt: Date.now(), until: 0, screenIds: [], by: 'Ed' };
+  await assertFails(updateDoc(doc(as('viewer'), 'companies', CID), { alert }));
+  await assertSucceeds(updateDoc(doc(as('editor'), 'companies', CID), { alert }));
+  await assertSucceeds(updateDoc(doc(as('editor'), 'companies', CID), { alert: { active: false, endedAt: Date.now() } }));
+  await assertFails(updateDoc(doc(as('editor'), 'companies', CID), { alert, name: 'Outro nome' }));
+  // Horário e catálogo: só admin.
+  await assertFails(updateDoc(doc(as('editor'), 'companies', CID), { hours: { enabled: true } }));
+  await assertSucceeds(updateDoc(doc(as('owner'), 'companies', CID), { hours: { enabled: true }, catalog: { enabled: true } }));
+});
+
+test('layouts e propostas: editor grava, leitor só lê, outra empresa nada', async () => {
+  await seedCompany();
+  const lay = { name: 'Caixas', template: 'side', zones: { side: { playlistId: 'p1' } }, bar: { enabled: true }, groupIds: ['g1'], screenIds: [], active: true };
+  await assertFails(setDoc(doc(as('viewer'), `companies/${CID}/layouts/l1`), lay));
+  await assertSucceeds(setDoc(doc(as('editor'), `companies/${CID}/layouts/l1`), lay));
+  await assertSucceeds(getDoc(doc(as('viewer'), `companies/${CID}/layouts/l1`)));
+  await assertFails(getDoc(doc(as('x'), `companies/${CID}/layouts/l1`)));
+  await assertSucceeds(setDoc(doc(as('editor'), `companies/${CID}/proposals/p1`), { client: 'Café', price: 100 }));
+  await assertFails(setDoc(doc(as('viewer'), `companies/${CID}/proposals/p2`), { client: 'Café' }));
+});
+
+test('registro de atividades: cada um grava o seu, só admin lê, ninguém apaga', async () => {
+  await seedCompany();
+  const e = (uid) => ({ action: 'publish', area: 'Grade', targetId: 's1', targetName: 'Manhã', fields: ['status'], uid, byName: 'Ed', at: serverTimestamp() });
+  await assertSucceeds(setDoc(doc(as('editor'), `companies/${CID}/audit/a1`), e('editor')));
+  await assertSucceeds(setDoc(doc(as('viewer'), `companies/${CID}/audit/a2`), e('viewer')));
+  await assertFails(setDoc(doc(as('editor'), `companies/${CID}/audit/a3`), e('owner'))); // em nome de outro
+  await assertFails(setDoc(doc(as('x'), `companies/${CID}/audit/a4`), e('x'))); // de fora
+  await assertFails(setDoc(doc(as('editor'), `companies/${CID}/audit/a5`), { ...e('editor'), at: Timestamp.fromMillis(Date.now() - DAY) }));
+  await assertFails(getDoc(doc(as('editor'), `companies/${CID}/audit/a1`)));
+  await assertSucceeds(getDoc(doc(as('owner'), `companies/${CID}/audit/a1`)));
+  await assertFails(updateDoc(doc(as('owner'), `companies/${CID}/audit/a1`), { targetName: 'apagado' }));
+  await assertFails(deleteDoc(doc(as('owner'), `companies/${CID}/audit/a1`)));
+});
+
+test('senhas e cronômetro: recepção (leitor) chama e inicia; não reconfigura; TV lê', async () => {
+  await seedCompany();
+  await pairScreen('QQ2QQ3', 'tv-q', 'scr1');
+  const Q = `companies/${CID}/queues/q1`;
+  await assertFails(setDoc(doc(as('viewer'), Q), { title: 'Senhas', seq: {}, current: null, history: [] }));
+  await assertSucceeds(setDoc(doc(as('editor'), Q), { title: 'Senhas', types: [{ prefix: 'A', label: 'Normal' }], counters: ['G1'], seq: {}, current: null, history: [] }));
+  await assertSucceeds(updateDoc(doc(as('viewer'), Q), { seq: { A: 1 }, current: { code: 'A001', counter: 'G1', at: Date.now(), n: 1 }, history: [], updatedAt: Date.now() }));
+  await assertFails(updateDoc(doc(as('viewer'), Q), { title: 'Outro' }));
+  await assertFails(updateDoc(doc(as('x'), Q), { seq: { A: 2 } }));
+  await assertSucceeds(getDoc(doc(as('tv-q'), Q)));
+  await assertFails(updateDoc(doc(as('tv-q'), Q), { seq: { A: 9 } }));
+  const T = `companies/${CID}/timers/t1`;
+  await assertSucceeds(setDoc(doc(as('editor'), T), { title: 'WOD', status: 'stopped', startedAt: null, pausedAt: null, pausedMs: 0 }));
+  await assertSucceeds(updateDoc(doc(as('viewer'), T), { status: 'running', startedAt: Date.now(), pausedMs: 0, updatedAt: Date.now() }));
+  await assertFails(updateDoc(doc(as('viewer'), T), { status: 'explodir' }));
+  await assertSucceeds(getDoc(doc(as('tv-q'), T)));
+  // Licença suspensa: a TV para de ler.
+  await setCompany({ status: 'suspended' });
+  await assertFails(getDoc(doc(as('tv-q'), Q)));
+});
+
+async function seedPoll({ open = true, round = 0 } = {}) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `companies/${CID}/polls/e1`), { question: 'Sabor?', options: ['A', 'B', 'C'], open, round, companyName: 'Acme', theme: 'brand' });
+    await setDoc(doc(db, `companies/${CID}/pollTallies/e1`), { round, counts: {}, total: 0 });
+  });
+}
+function vote(uid, option, { round = 0, inc = 1, key = option, onlyVote = false, onlyTally = false } = {}) {
+  const db = as(uid);
+  const b = writeBatch(db);
+  if (!onlyTally) b.set(doc(db, `companies/${CID}/polls/e1/votes/${round}_${uid}`), { option, at: serverTimestamp() });
+  if (!onlyVote) b.update(doc(db, `companies/${CID}/pollTallies/e1`), { [`counts.o${key}`]: increment(inc), total: increment(1) });
+  return b.commit();
+}
+
+test('enquete: um voto por aparelho, placar sobe 1 na opção votada, fechada não vota', async () => {
+  await seedCompany();
+  await seedPoll();
+  await assertSucceeds(getDoc(doc(anon(), `companies/${CID}/polls/e1`)));
+  await assertSucceeds(getDoc(doc(anon(), `companies/${CID}/pollTallies/e1`)));
+  await assertSucceeds(vote('v1', 1));
+  await assertFails(vote('v1', 2)); // segundo voto do mesmo aparelho
+  await assertFails(vote('v2', 0, { key: 1 })); // placar na opção errada
+  await assertFails(vote('v3', 0, { inc: 5 })); // soma mais de 1
+  await assertFails(vote('v4', 0, { onlyVote: true })); // voto sem placar
+  await assertFails(vote('v5', 0, { onlyTally: true })); // placar sem voto
+  await assertFails(vote('v6', 7, { key: 7 })); // opção que não existe
+  let t;
+  await env.withSecurityRulesDisabled(async (ctx) => { t = (await getDoc(doc(ctx.firestore(), `companies/${CID}/pollTallies/e1`))).data(); });
+  assert.deepEqual([t.total, t.counts.o1], [1, 1]);
+  // Visitante não lê votos; editor zera (nova rodada) e o mesmo aparelho vota de novo.
+  await assertFails(getDoc(doc(as('v1'), `companies/${CID}/polls/e1/votes/0_v1`)));
+  const ed = as('editor');
+  const r = writeBatch(ed);
+  r.update(doc(ed, `companies/${CID}/polls/e1`), { round: 1 });
+  r.set(doc(ed, `companies/${CID}/pollTallies/e1`), { round: 1, counts: {}, total: 0 });
+  await assertSucceeds(r.commit());
+  await assertSucceeds(vote('v1', 2, { round: 1 }));
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), `companies/${CID}/polls/e1`), { open: false }));
+  await assertFails(vote('v7', 0, { round: 1 }));
+});
+
+test('foto no telão: só foto deste mural, enviada pelo servidor; mural de texto não aceita foto', async () => {
+  await seedCompany();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `companies/${CID}/commentBoards/fotos1`), { title: 'Fotos', question: 'Mande', open: true, autoApprove: false, companyName: 'Acme', theme: 'night', kind: 'photos' });
+    await setDoc(doc(db, `companies/${CID}/commentSettings/fotos1`), { autoApprove: false, blockPattern: 'a^', words: [] });
+  });
+  await seedBoard();
+  const send = (uid, id, data, board = 'fotos1') => {
+    const db = as(uid);
+    const b = writeBatch(db);
+    b.set(doc(db, `commentLimits/${uid}`), { windowStart: serverTimestamp(), count: 1, lastAt: serverTimestamp(), lastId: id });
+    b.set(doc(db, `companies/${CID}/commentBoards/${board}/comments/${id}`), { name: 'Bia', text: '', status: 'pending', createdAt: serverTimestamp(), uid, ...data });
+    return b.commit();
+  };
+  await assertSucceeds(send('v1', 'f1', { photo: `https://midias.loja.com/m/${CID}/p-fotos1-abc123.jpg` }));
+  await assertFails(send('v2', 'f2', {})); // sem foto
+  await assertFails(send('v3', 'f3', { photo: `https://midias.loja.com/m/${CID}/p-outro-abc.jpg` })); // de outro mural
+  await assertFails(send('v4', 'f4', { photo: 'https://site-estranho.com/x.jpg' }));
+  await assertFails(send('v5', 'f5', { photo: `https://midias.loja.com/m/${CID}/p-mural1-abc.jpg`, text: 'oi oi' }, 'mural1')); // mural de texto
+});
+
+test('catálogo de mídia indoor: público lê; só o admin da empresa publica', async () => {
+  await seedCompany();
+  await assertFails(setDoc(doc(as('editor'), `publicCatalogs/${CID}`), { enabled: true }));
+  await assertFails(setDoc(doc(as('x'), `publicCatalogs/${CID}`), { enabled: true }));
+  await assertSucceeds(setDoc(doc(as('owner'), `publicCatalogs/${CID}`), { enabled: true, companyName: 'Acme', points: [] }));
+  await assertSucceeds(getDoc(doc(anon(), `publicCatalogs/${CID}`)));
+});
+
+test('pesquisa: resposta anônima, uma por aparelho, formato conferido; só a equipe lê', async () => {
+  await seedCompany();
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `companies/${CID}/surveys/p1`), {
+    title: 'Opinião', questions: [{ type: 'nps', text: 'Nota?' }, { type: 'text', text: 'Sugestão?' }], open: true, round: 0, companyName: 'Acme', theme: 'brand',
+  }));
+  const answer = (uid, answers, id = `0_${uid}`) => setDoc(doc(as(uid), `companies/${CID}/surveys/p1/responses/${id}`), { answers, at: serverTimestamp() });
+  await assertSucceeds(getDoc(doc(anon(), `companies/${CID}/surveys/p1`)));
+  await assertSucceeds(answer('a1', { q0: 9, q1: 'Ótimo atendimento' }));
+  await assertFails(answer('a1', { q0: 10 })); // segunda resposta do mesmo aparelho
+  await assertFails(answer('a2', { q0: 9 }, '0_outro')); // id de outra pessoa
+  await assertFails(answer('a3', { q0: 99 })); // nota fora da faixa
+  await assertFails(answer('a4', { q9: 1 })); // pergunta que não existe
+  await assertFails(answer('a5', {})); // vazia
+  await assertFails(answer('a6', { q1: 'x'.repeat(501) })); // texto longo demais
+  await assertFails(getDoc(doc(as('a1'), `companies/${CID}/surveys/p1/responses/0_a1`))); // público não lê respostas
+  await assertSucceeds(getDoc(doc(as('editor'), `companies/${CID}/surveys/p1/responses/0_a1`)));
+  await assertFails(getDoc(doc(as('viewer'), `companies/${CID}/surveys/p1/responses/0_a1`)));
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), `companies/${CID}/surveys/p1`), { open: false }));
+  await assertFails(answer('a7', { q0: 5 }));
+});
+
+test('CRM e pedidos da loja: equipe usa o CRM; pedidos só o admin lê e ninguém grava pelo app', async () => {
+  await seedCompany();
+  await assertSucceeds(setDoc(doc(as('editor'), `companies/${CID}/leads/l1`), { name: 'Farmácia', stage: 'novo' }));
+  await assertSucceeds(getDoc(doc(as('viewer'), `companies/${CID}/leads/l1`)));
+  await assertFails(setDoc(doc(as('viewer'), `companies/${CID}/leads/l2`), { name: 'X' }));
+  await assertFails(getDoc(doc(as('x'), `companies/${CID}/leads/l1`)));
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `companies/${CID}/storeOrders/o1`), { status: 'pending', value: 99 }));
+  await assertSucceeds(getDoc(doc(as('owner'), `companies/${CID}/storeOrders/o1`)));
+  await assertFails(getDoc(doc(as('editor'), `companies/${CID}/storeOrders/o1`)));
+  await assertFails(updateDoc(doc(as('owner'), `companies/${CID}/storeOrders/o1`), { status: 'paid' }));
+  await assertFails(setDoc(doc(as('owner'), `companies/${CID}/storeOrders/o2`), { status: 'paid' }));
+  // Catálogo da loja: público lê; só a Vetta edita.
+  await assertSucceeds(getDoc(doc(anon(), 'platform/store')));
+  await assertFails(setDoc(doc(as('owner'), 'platform/store'), { items: [] }));
+});
+
+test('indicação: cadastro guarda o código de quem indicou, sem passar do tamanho', async () => {
+  const db = as('u9');
+  const ok = writeBatch(db);
+  ok.set(doc(db, 'companies', 'c9'), { ...trialCompany('u9'), referredBy: 'ZHNCDM' });
+  ok.set(doc(db, 'companies/c9/members/u9'), { role: 'owner', name: 'Ana' });
+  ok.set(doc(db, 'users/u9'), { companyId: 'c9' });
+  await assertSucceeds(ok.commit());
+  const db2 = as('u10');
+  const bad = writeBatch(db2);
+  bad.set(doc(db2, 'companies', 'c10'), { ...trialCompany('u10'), referredBy: 'X'.repeat(40) });
+  bad.set(doc(db2, 'companies/c10/members/u10'), { role: 'owner' });
+  bad.set(doc(db2, 'users/u10'), { companyId: 'c10' });
+  await assertFails(bad.commit());
+  // O próprio cliente não se dá o prêmio.
+  await assertFails(updateDoc(doc(as('u9'), 'companies/c9'), { referralRewarded: true }));
 });

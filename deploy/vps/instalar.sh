@@ -64,7 +64,7 @@ install -d -m 755 /opt/vertice /opt/vertice/midias /opt/vertice/alertas
 
 passo "Código"
 install -m 644 "$SRC/servers/media/server.js" "$SRC/servers/media/package.json" /opt/vertice/midias/
-install -m 644 "$SRC"/servers/worker/{worker.js,rules.js,migrar-midias.mjs,package.json} /opt/vertice/alertas/
+install -m 644 "$SRC"/servers/worker/{worker.js,rules.js,store.js,migrar-midias.mjs,package.json} /opt/vertice/alertas/
 (cd /opt/vertice/midias && npm install --omit=dev --no-audit --no-fund --loglevel=error)
 (cd /opt/vertice/alertas && npm install --omit=dev --no-audit --no-fund --loglevel=error)
 
@@ -78,6 +78,12 @@ HOST=127.0.0.1
 PORT=8787
 DATA_DIR=/var/lib/vertice/midias
 MAX_UPLOAD_MB=500
+# Foto no telão: tamanho máximo da foto do público (MB).
+PUBLIC_MAX_MB=6
+# Textos com IA no Estúdio (deixe vazio para desligar). A chave fica só aqui no servidor.
+ANTHROPIC_API_KEY=
+AI_MODEL=claude-haiku-5-5
+AI_DAILY_LIMIT=60
 # O envio exige o login do painel (token), então * é seguro. Para restringir:
 # ALLOWED_ORIGINS=https://vertice.vettasistemas.com.br,app://vertice
 ALLOWED_ORIGINS=*

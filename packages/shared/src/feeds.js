@@ -183,6 +183,31 @@ export const LEAGUES = {
   4332: { label: 'Serie A (Itália)' },
   4331: { label: 'Bundesliga (Alemanha)' },
   4480: { label: 'Liga dos Campeões da UEFA' },
+  4625: { label: 'Brasileirão Série C', year: true },
+  5079: { label: 'Brasileirão Série D', year: true },
+  // Estaduais (ids conferidos no TheSportsDB em 11/2026).
+  5768: { label: 'Pernambucano', year: true, state: true },
+  5767: { label: 'Paulista', year: true, state: true },
+  5688: { label: 'Carioca', year: true, state: true },
+  5763: { label: 'Mineiro', year: true, state: true },
+  5691: { label: 'Gaúcho', year: true, state: true },
+  5684: { label: 'Baiano', year: true, state: true },
+  5689: { label: 'Cearense', year: true, state: true },
+  5766: { label: 'Paranaense', year: true, state: true },
+  5687: { label: 'Catarinense', year: true, state: true },
+  5760: { label: 'Goiano', year: true, state: true },
+  5764: { label: 'Paraense', year: true, state: true },
+  5765: { label: 'Paraibano', year: true, state: true },
+  5770: { label: 'Potiguar', year: true, state: true },
+  5677: { label: 'Alagoano', year: true, state: true },
+  5773: { label: 'Sergipano', year: true, state: true },
+  5769: { label: 'Piauiense', year: true, state: true },
+  5761: { label: 'Maranhense', year: true, state: true },
+  5679: { label: 'Amazonense', year: true, state: true },
+  5686: { label: 'Capixaba', year: true, state: true },
+  5685: { label: 'Brasiliense', year: true, state: true },
+  5762: { label: 'Mato-grossense', year: true, state: true },
+  5774: { label: 'Sul-mato-grossense', year: true, state: true },
 };
 
 /** Temporada no formato do TheSportsDB: "2026" (ano) ou "2026-2027" (europeia, vira em julho). */
@@ -302,6 +327,44 @@ export const NEWS_FEEDS = [
   { label: 'g1 Pernambuco', url: 'https://g1.globo.com/rss/g1/pernambuco/' },
   { label: 'g1 Economia', url: 'https://g1.globo.com/rss/g1/economia/' },
 ];
+
+/**
+ * Portais e editorias com feed conferido (11/2026). A TV mostra só manchete e fonte.
+ * Cada portal tem os próprios termos de uso: a Agência Brasil autoriza com crédito; os demais,
+ * confira antes de exibir em ponto comercial.
+ */
+export const NEWS_PUBLISHERS = {
+  g1: { label: 'g1', color: '#C4170C', feeds: {
+    'Últimas': 'https://g1.globo.com/rss/g1/', Política: 'https://g1.globo.com/rss/g1/politica/', Economia: 'https://g1.globo.com/rss/g1/economia/',
+    Educação: 'https://g1.globo.com/rss/g1/educacao/', Tecnologia: 'https://g1.globo.com/rss/g1/tecnologia/', Mundo: 'https://g1.globo.com/rss/g1/mundo/',
+    Saúde: 'https://g1.globo.com/rss/g1/ciencia-e-saude/', Pernambuco: 'https://g1.globo.com/rss/g1/pernambuco/',
+  } },
+  uol: { label: 'UOL', color: '#1A1A1A', feeds: {
+    Notícias: 'https://rss.uol.com.br/feed/noticias.xml', Economia: 'https://rss.uol.com.br/feed/economia.xml',
+    Tecnologia: 'https://rss.uol.com.br/feed/tecnologia.xml', Esporte: 'https://rss.uol.com.br/feed/esporte.xml',
+  } },
+  ge: { label: 'ge', color: '#06AA48', feeds: { 'Últimas': 'https://ge.globo.com/rss/ge/', Futebol: 'https://ge.globo.com/rss/ge/futebol/', Pernambuco: 'https://ge.globo.com/rss/ge/pe/' } },
+  agenciabrasil: { label: 'Agência Brasil', color: '#00508C', feeds: {
+    'Últimas': 'https://agenciabrasil.ebc.com.br/feed/ultimasnoticias/feed.xml', Geral: 'https://agenciabrasil.ebc.com.br/rss/geral/feed.xml',
+    Economia: 'https://agenciabrasil.ebc.com.br/rss/economia/feed.xml', Política: 'https://agenciabrasil.ebc.com.br/rss/politica/feed.xml',
+    Saúde: 'https://agenciabrasil.ebc.com.br/rss/saude/feed.xml', Educação: 'https://agenciabrasil.ebc.com.br/rss/educacao/feed.xml',
+    'Direitos humanos': 'https://agenciabrasil.ebc.com.br/rss/direitos-humanos/feed.xml', Internacional: 'https://agenciabrasil.ebc.com.br/rss/internacional/feed.xml',
+    Esportes: 'https://agenciabrasil.ebc.com.br/rss/esportes/feed.xml', Cultura: 'https://agenciabrasil.ebc.com.br/rss/cultura/feed.xml',
+  } },
+  canaltech: { label: 'Canaltech', color: '#0B9ED9', feeds: { Tecnologia: 'https://canaltech.com.br/rss/' } },
+  vatican: { label: 'Vatican News', color: '#8A6D3B', feeds: { Notícias: 'https://www.vaticannews.va/pt.rss.xml' } },
+  folha: { label: 'Folha', color: '#1A1A1A', feeds: { 'Em cima da hora': 'https://feeds.folha.uol.com.br/emcimadahora/rss091.xml' } },
+  cnn: { label: 'CNN Brasil', color: '#CC0000', feeds: { 'Últimas': 'https://www.cnnbrasil.com.br/feed/' } },
+  canalrural: { label: 'Canal Rural', color: '#2E7D32', feeds: { Agro: 'https://www.canalrural.com.br/feed/' } },
+};
+
+/** Lista de feeds de um portal: editorias escolhidas (até 4) ou as primeiras. */
+export function publisherFeeds(key, editorias = []) {
+  const p = NEWS_PUBLISHERS[key];
+  if (!p) return [];
+  const names = (editorias.length ? editorias : Object.keys(p.feeds).slice(0, 1)).filter((n) => p.feeds[n]).slice(0, 4);
+  return names.map((n) => ({ label: Object.keys(p.feeds).length > 1 ? `${p.label} · ${n}` : p.label, url: p.feeds[n] }));
+}
 
 /** Manchetes intercaladas de vários feeds (uma de cada, em rodízio), sem repetir título. */
 export function mergeFeeds(feeds, max = 12) {

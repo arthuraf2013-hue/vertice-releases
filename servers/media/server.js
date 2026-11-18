@@ -8,6 +8,8 @@
 //   PUT    /v1/files/companies/{empresa}/media/{arquivo}   envia (editor, admin ou proprietário)
 //   DELETE /v1/files/companies/{empresa}/media/{arquivo}   apaga
 //   GET    /m/{empresa}/{arquivo}                          baixa (TVs e painel; aceita Range)
+//   PUT    /v1/public/{empresa}/{mural}/{arquivo}           foto do público (Foto no telão; login anônimo)
+//   POST   /v1/ai/{empresa}/texto                           textos de oferta com IA (editor; precisa de ANTHROPIC_API_KEY)
 //   GET    /health                                         verificação rápida
 //
 // Configuração por variáveis de ambiente (ou arquivo .env ao lado deste):
@@ -19,6 +21,10 @@
 //   DATA_DIR              pasta das mídias (padrão ./data)
 //   MAX_UPLOAD_MB         tamanho máximo por arquivo (padrão 500)
 //   ALLOWED_ORIGINS       origens do painel separadas por vírgula (padrão *)
+//   PUBLIC_MAX_MB         tamanho máximo da foto do público (padrão 6)
+//   ANTHROPIC_API_KEY     chave da API da Anthropic (textos com IA no Estúdio; vazio = desligado)
+//   AI_MODEL              modelo (padrão claude-haiku-5-5)
+//   AI_DAILY_LIMIT        pedidos de IA por empresa por dia (padrão 60)
 //   FIREBASE_AUTH_EMULATOR_HOST / FIRESTORE_EMULATOR_HOST  só para testes locais
 import http from 'node:http';
 import fs from 'node:fs';
@@ -52,6 +58,11 @@ const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const FILE = /^[A-Za-z0-9_-]{1,80}\.(jpe?g|png|webp|gif|mp4|webm)$/i;
 const MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm' };
 const WRITERS = new Set(['editor', 'admin', 'owner']);
+const PUBLIC_MAX = Number(process.env.PUBLIC_MAX_MB || 6) * 1024 * 1024;
+const PUBLIC_FILE = /^[A-Za-z0-9_-]{1,80}\.jpg$/;
+const AI_KEY = process.env.ANTHROPIC_API_KEY || '';
+const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-5-5';
+const AI_DAILY = Number(process.env.AI_DAILY_LIMIT || 60);
 
 const JWKS = createRemoteJWKSet(
   new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'),
@@ -147,7 +158,7 @@ function cors(req, res) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, PUT, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Range');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
   res.setHeader('Access-Control-Max-Age', '86400');
@@ -281,6 +292,174 @@ async function handleGet(req, res, cid, name) {
   await pipeline(fs.createReadStream(file, { start, end }), res).catch(() => {});
 }
 
+/** Mural público (leitura pública nas regras do Firestore), lido com o token de quem envia. */
+async function boardOf(token, cid, bid) {
+  const base = FS_EMU ? `http://${FS_EMU}` : 'https://firestore.googleapis.com';
+  const res = await fetch(`${base}/v1/projects/${PROJECT}/databases/(default)/documents/companies/${cid}/commentBoards/${bid}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) return null;
+  const f = (await res.json())?.fields || {};
+  return { open: fsValue(f.open), kind: fsValue(f.kind) };
+}
+
+/** Limite simples por aparelho (memória): 3 fotos a cada 10 minutos, como os comentários. */
+const publicHits = new Map();
+function publicAllowed(uid, now = Date.now()) {
+  const list = (publicHits.get(uid) || []).filter((t) => now - t < 10 * 60_000);
+  if (list.length >= 3) return false;
+  list.push(now);
+  publicHits.set(uid, list);
+  return true;
+}
+
+/**
+ * Foto do público (Foto no telão). Quem envia é um usuário anônimo do Firebase; o mural precisa
+ * existir, ser de fotos e estar aberto. O nome do arquivo começa com "p-{mural}-" (as regras do
+ * Firestore só aceitam fotos desse mural) e a foto conta no espaço da empresa.
+ */
+async function handlePublicUpload(req, res, cid, bid, name) {
+  if (!ID.test(cid) || !ID.test(bid) || !PUBLIC_FILE.test(name)) return send(res, 400, { error: 'Envio inválido.' });
+  const m = /^Bearer (.+)$/.exec(req.headers.authorization || '');
+  if (!m) return send(res, 401, { error: 'Abra a página do mural de novo.' });
+  let uid;
+  try { uid = await verifyToken(m[1]); } catch { return send(res, 401, { error: 'Abra a página do mural de novo.' }); }
+  if ((req.headers['content-type'] || '').split(';')[0] !== 'image/jpeg') return send(res, 415, { error: 'Envie uma foto.' });
+  const declared = Number(req.headers['content-length'] || 0);
+  if (declared > PUBLIC_MAX) return send(res, 413, { error: 'Foto grande demais.' });
+  const board = await boardOf(m[1], cid, bid);
+  if (!board || board.kind !== 'photos') return send(res, 404, { error: 'Mural não encontrado.' });
+  if (board.open !== true) return send(res, 403, { error: 'O mural está fechado.' });
+  if (!publicAllowed(uid)) return send(res, 429, { error: 'Você já mandou 3 fotos. Espere alguns minutos.' });
+  const file = `p-${bid}-${name.replace(/\.jpg$/, '').slice(-40)}.jpg`;
+  const dest = filePath(cid, file);
+  if (!dest) return send(res, 400, { error: 'Envio inválido.' });
+  await fsp.mkdir(path.dirname(dest), { recursive: true });
+  const part = `${dest}.${crypto.randomBytes(4).toString('hex')}.part`;
+  let received = 0;
+  let head = null;
+  try {
+    await pipeline(req, async function* limit(src) {
+      for await (const chunk of src) {
+        received += chunk.length;
+        if (!head) head = chunk.subarray(0, 3);
+        if (received > PUBLIC_MAX) throw Object.assign(new Error('grande'), { code: 'TOO_BIG' });
+        yield chunk;
+      }
+    }, fs.createWriteStream(part));
+    // Confere que é mesmo um JPEG (FF D8 FF), não só o cabeçalho dizendo que é.
+    if (!head || head[0] !== 0xff || head[1] !== 0xd8 || head[2] !== 0xff) throw Object.assign(new Error('tipo'), { code: 'NOT_JPEG' });
+    await fsp.rename(part, dest);
+    usageCache.delete(cid);
+  } catch (e) {
+    await fsp.rm(part, { force: true });
+    if (e.code === 'TOO_BIG') return send(res, 413, { error: 'Foto grande demais.' });
+    if (e.code === 'NOT_JPEG') return send(res, 415, { error: 'Envie uma foto.' });
+    throw e;
+  }
+  log('foto-publico', cid, bid, received, uid);
+  send(res, 201, { url: `${PUBLIC_URL}/m/${cid}/${file}` });
+}
+
+/** Lê o corpo JSON (pequeno). */
+async function readJson(req, max = 8192) {
+  let body = '';
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > max) throw Object.assign(new Error('grande'), { code: 'TOO_BIG' });
+  }
+  return JSON.parse(body || '{}');
+}
+
+const aiUse = new Map();
+/**
+ * Sugestões de texto para peças do Estúdio (oferta, aviso). A chave da IA fica só aqui no servidor;
+ * cada empresa tem um limite por dia. Devolve 3 opções curtas em JSON.
+ */
+async function handleAi(req, res, cid) {
+  if (!AI_KEY) return send(res, 503, { error: 'A IA não está ligada neste servidor. Peça para a Vetta configurar.' });
+  if (!ID.test(cid)) return send(res, 400, { error: 'Empresa inválida.' });
+  const auth = await authorize(req, cid);
+  if (auth.error) return send(res, auth.status, { error: auth.error });
+  const company = await companyOf(auth.token, cid);
+  if (company && licenseBlocked(company)) return send(res, 402, { error: 'A assinatura desta empresa está bloqueada.' });
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `${cid}:${day}`;
+  const used = aiUse.get(key) || 0;
+  if (used >= AI_DAILY) return send(res, 429, { error: `Limite de ${AI_DAILY} sugestões por dia atingido. Amanhã libera de novo.` });
+  let input;
+  try { input = await readJson(req); } catch { return send(res, 400, { error: 'Pedido inválido.' }); }
+  const clip = (v, n) => String(v || '').replace(/[\u0000-\u001f]/g, ' ').slice(0, n);
+  // Três usos: textos de peça (padrão), perguntas de quiz e o assistente de ajuda da Academia.
+  const mode = ['quiz', 'help'].includes(input.mode) ? input.mode : 'text';
+  let prompt;
+  let maxTokens = 600;
+  if (mode === 'quiz') {
+    const count = Math.max(3, Math.min(15, Number(input.count) || 10));
+    maxTokens = 1500;
+    prompt = [
+      'Você cria perguntas de quiz para TVs de empresas no Brasil (lidas de longe, em poucos segundos).',
+      `Crie ${count} perguntas de múltipla escolha em português do Brasil sobre: ${JSON.stringify(clip(input.topic, 80) || 'conhecimentos gerais')}.`,
+      'Só fatos certos e estáveis, que não mudam com o tempo; nada de política, religião, tragédias ou temas sensíveis.',
+      'Cada pergunta com 1 resposta certa e 3 erradas plausíveis. Pergunta até 110 letras; respostas até 40.',
+      'Responda só com JSON: {"questions":[["pergunta","certa","errada","errada","errada"]]}.',
+    ].join('\n');
+  } else if (mode === 'help') {
+    maxTokens = 700;
+    prompt = [
+      'Você é o assistente de ajuda do Vértice, um sistema de digital signage (TVs com propaganda e avisos) da Vetta Sistemas.',
+      'Responda em português do Brasil, em até 6 frases curtas, dizendo em que menu do painel clicar.',
+      'Use só o que está no mapa do painel abaixo e o bom senso; se não souber, diga que não sabe e sugira falar com a Vetta Sistemas.',
+      'Não trate de pagamentos, senhas ou dados de outras empresas. Texto simples, sem markdown.',
+      `Mapa do painel:\n${clip(input.context, 6000)}`,
+      `Pergunta: ${JSON.stringify(clip(input.question, 300))}`,
+    ].join('\n');
+  } else {
+    const kind = ['offer', 'notice', 'event', 'welcome', 'menu'].includes(input.kind) ? input.kind : 'offer';
+    const brief = {
+      tipo: kind, produto: clip(input.product, 80), preco: clip(input.price, 20), loja: clip(input.store, 60),
+      segmento: clip(input.segment, 40), tom: clip(input.tone, 30), detalhes: clip(input.details, 240),
+    };
+    prompt = [
+      'Você escreve textos curtos para TVs de lojas pequenas no Brasil (digital signage), lidos de longe em poucos segundos.',
+      'Escreva 3 opções diferentes em português do Brasil, sem emojis, sem exagero e sem prometer o que o pedido não diz.',
+      'Não invente preço, desconto, prazo ou condição: use só o que estiver no pedido.',
+      'Responda só com JSON: {"options":[{"badge":"","title":"","detail":"","footnote":""}]}.',
+      'Limites: badge até 16 letras (ex.: SÓ HOJE), title até 32, detail até 70, footnote até 60 (pode ficar vazio).',
+      `Pedido: ${JSON.stringify(brief)}`,
+    ].join('\n');
+  }
+  aiUse.set(key, used + 1);
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': AI_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
+  }).catch(() => null);
+  if (!r || !r.ok) {
+    log('ia-erro', cid, r?.status || 'rede');
+    return send(res, 502, { error: 'A IA não respondeu agora. Tente de novo em instantes.' });
+  }
+  const text = ((await r.json())?.content || []).map((c) => c.text || '').join('');
+  if (mode === 'help') {
+    const answer = text.replace(/[\u0000-\u0009\u000b-\u001f]/g, ' ').trim().slice(0, 1500);
+    if (!answer) return send(res, 502, { error: 'O assistente não respondeu agora. Tente de novo.' });
+    log('ia-ajuda', cid, auth.uid, used + 1);
+    return send(res, 200, { answer, left: AI_DAILY - used - 1 });
+  }
+  if (mode === 'quiz') {
+    let qs = [];
+    try { qs = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)).questions || []; } catch { qs = []; }
+    qs = qs.filter((q) => Array.isArray(q) && q.length >= 3).slice(0, 15).map((q) => q.slice(0, 5).map((x, i) => clip(x, i ? 40 : 110).replace(/\|/g, '/')));
+    if (!qs.length) return send(res, 502, { error: 'A IA respondeu fora do formato. Tente de novo.' });
+    log('ia-quiz', cid, auth.uid, used + 1);
+    return send(res, 200, { questions: qs, left: AI_DAILY - used - 1 });
+  }
+  let options = [];
+  try { options = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)).options || []; } catch { options = []; }
+  options = options.slice(0, 3).map((o) => ({ badge: clip(o.badge, 16), title: clip(o.title, 32), detail: clip(o.detail, 70), footnote: clip(o.footnote, 60) })).filter((o) => o.title);
+  if (!options.length) return send(res, 502, { error: 'A IA respondeu fora do formato. Tente de novo.' });
+  log('ia', cid, auth.uid, used + 1);
+  send(res, 200, { options, left: AI_DAILY - used - 1 });
+}
+
 function log(...a) {
   console.log(new Date().toISOString(), ...a);
 }
@@ -297,6 +476,12 @@ const server = http.createServer(async (req, res) => {
 
     let m = /^\/m\/([^/]+)\/([^/]+)$/.exec(pathname);
     if (m && (req.method === 'GET' || req.method === 'HEAD')) return await handleGet(req, res, m[1], m[2]);
+
+    m = /^\/v1\/public\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(pathname);
+    if (m && req.method === 'PUT') return await handlePublicUpload(req, res, m[1], m[2], m[3]);
+
+    m = /^\/v1\/ai\/([^/]+)\/texto$/.exec(pathname);
+    if (m && req.method === 'POST') return await handleAi(req, res, m[1]);
 
     m = /^\/v1\/files\/companies\/([^/]+)\/media\/([^/]+)$/.exec(pathname);
     if (m && req.method === 'PUT') return await handleUpload(req, res, m[1], m[2]);

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { COMMENT_STATUS, commentLink, timeAgo, qrMatrix, qrPath, formatDateTime, pollResults, pollOptions, voteLink } from '@vertice/shared';
+import { COMMENT_STATUS, commentLink, timeAgo, qrMatrix, qrPath, formatDateTime, pollResults, pollOptions, voteLink, surveyReport, surveyLink, npsZone, toCsv } from '@vertice/shared';
 import { useSession } from '../session.jsx';
 import { useCol, useDoc, useNow } from '../data/hooks.js';
 import { api } from '../data/api.js';
@@ -19,6 +19,7 @@ export function Comments() {
   const boards = useCol(`${base}/media`, { where: [['type', '==', 'app']] });
   const list = useMemo(() => (boards || []).filter((m) => m.app?.kind === 'comments' || m.app?.kind === 'photowall').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [boards]);
   const polls = useMemo(() => (boards || []).filter((m) => m.app?.kind === 'poll'), [boards]);
+  const surveys = useMemo(() => (boards || []).filter((m) => m.app?.kind === 'survey'), [boards]);
   const [picked, setPicked] = useState(null);
   const [view, setView] = useState('murais');
   if (!boards) return <Loading />;
@@ -26,8 +27,15 @@ export function Comments() {
   return (
     <div className="vx-page">
       <PageHeader overline="CONTEÚDO" title="Interação" subtitle="Comentários, fotos e votos do público. Só o que você aprovar aparece nas telas." />
-      {polls.length > 0 && <Tabs value={view} onChange={setView} tabs={[{ id: 'murais', label: 'Murais', count: list.length }, { id: 'enquetes', label: 'Enquetes', count: polls.length }]} />}
-      {view === 'enquetes' && polls.length > 0 ? <Polls polls={polls} base={base} companyId={companyId} canEdit={can('editor')} /> : !board ? (
+      {(polls.length > 0 || surveys.length > 0) && (
+        <Tabs value={view} onChange={setView} tabs={[
+          { id: 'murais', label: 'Murais', count: list.length },
+          ...(polls.length ? [{ id: 'enquetes', label: 'Enquetes', count: polls.length }] : []),
+          ...(surveys.length ? [{ id: 'pesquisas', label: 'Pesquisas', count: surveys.length }] : []),
+        ]} />
+      )}
+      {view === 'pesquisas' && surveys.length > 0 ? <Surveys surveys={surveys} base={base} companyId={companyId} canEdit={can('editor')} />
+        : view === 'enquetes' && polls.length > 0 ? <Polls polls={polls} base={base} companyId={companyId} canEdit={can('editor')} /> : !board ? (
         <Card>
           <EmptyState icon="message" title="Nenhum mural ainda"
             action={can('editor') && <Link className="vx-btn vx-btn-primary" to="/aplicativos"><Icon name="plus" />Criar mural em Aplicativos</Link>}>
@@ -204,5 +212,120 @@ function PollCard({ media, base, companyId, canEdit }) {
       </div>
       {confirmDialog}
     </Card>
+  );
+}
+
+/* ---------------- Pesquisas de satisfação ---------------- */
+
+function Surveys({ surveys, base, companyId, canEdit }) {
+  const [picked, setPicked] = useState(null);
+  const m = surveys.find((x) => x.id === picked) || surveys[0];
+  return (
+    <>
+      {surveys.length > 1 && (
+        <div className="vx-comments-pick">
+          <Select label="Pesquisa" value={m.id} onChange={(e) => setPicked(e.target.value)} options={surveys.map((x) => ({ value: x.id, label: x.name }))} />
+        </div>
+      )}
+      <SurveyReport key={m.id} media={m} base={base} companyId={companyId} canEdit={canEdit} />
+    </>
+  );
+}
+
+const TONE_CLASS = { good: 'online', warn: 'warn', bad: 'offline', muted: 'muted' };
+
+function SurveyReport({ media, base, companyId, canEdit }) {
+  const toast = useToast();
+  const [confirm, confirmDialog] = useConfirm();
+  const survey = useDoc(`${base}/surveys/${media.id}`);
+  const all = useCol(`${base}/surveys/${media.id}/responses`, { orderBy: ['at', 'desc'], limit: 2000 });
+  if (!survey || !all) return <Loading />;
+  const round = Number(survey.round) || 0;
+  const responses = all.filter((r) => String(r.id).startsWith(`${round}_`));
+  const rep = surveyReport(survey.questions || [], responses);
+  const c = media.app?.config || {};
+  const link = c.link || surveyLink(siteBase(), companyId, media.id);
+  const open = survey.open !== false;
+  const exportCsv = () => {
+    const qs = survey.questions || [];
+    const fmt = (q, v) => (v == null ? '' : q.type === 'choice' ? q.options?.[v] ?? '' : v);
+    const csv = toCsv(responses, [
+      { label: 'Data', value: (r) => (r.at ? formatDateTime(r.at) : '') },
+      ...qs.map((q, i) => ({ label: q.text, value: (r) => fmt(q, r.answers?.[`q${i}`]) })),
+    ]);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `${media.name.replace(/[^\w\s-]/g, '').trim() || 'pesquisa'}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  const restart = async () => {
+    if (!(await confirm({ title: 'Começar uma rodada nova?', message: 'O relatório recomeça do zero e todos podem responder de novo. As respostas antigas continuam guardadas.', confirmLabel: 'Começar de novo' }))) return;
+    await api.update(`${base}/surveys/${media.id}`, { round: round + 1, updatedAt: api.NOW });
+    toast('Rodada nova aberta.');
+  };
+  return (
+    <>
+      <Card title={media.name} icon="clipboard" actions={(
+        <div className="vx-row-actions">
+          <Button size="sm" icon="download" onClick={exportCsv} disabled={!responses.length}>Planilha (CSV)</Button>
+          {canEdit && <Button size="sm" icon="sync" onClick={restart}>Rodada nova</Button>}
+        </div>
+      )}>
+        <div className="vx-comments-board">
+          <SmallQr text={link} />
+          <div className="vx-comments-board-text">
+            <p className="vx-comments-question">{rep.total} {rep.total === 1 ? 'resposta' : 'respostas'} nesta rodada</p>
+            <div className="vx-comments-link"><code>{link}</code><a className="vx-icon-btn" href={link} target="_blank" rel="noreferrer" aria-label="Abrir a pesquisa"><Icon name="link" /></a></div>
+            {canEdit && <Toggle label="Recebendo respostas" checked={open} onChange={(v) => api.update(`${base}/surveys/${media.id}`, { open: v, updatedAt: api.NOW }).then(() => toast(v ? 'Pesquisa aberta.' : 'Pesquisa encerrada.'))} />}
+          </div>
+        </div>
+      </Card>
+      <div className="vx-survey-grid">
+        {rep.questions.map((q, i) => (
+          <Card key={i} title={`${i + 1}. ${q.text}`} className="vx-survey-card">
+            {q.type === 'nps' && (() => {
+              const z = npsZone(q.nps);
+              return (
+                <div className="vx-nps">
+                  <div className="vx-nps-score"><b className="vx-num">{q.nps ?? '—'}</b><span className={`vx-chip vx-chip-${TONE_CLASS[z.tone]}`}>NPS · {z.label}</span></div>
+                  <div className="vx-nps-bar" aria-hidden>
+                    <i className="is-bad" style={{ flex: q.detractors }} /><i className="is-mid" style={{ flex: q.passives }} /><i className="is-good" style={{ flex: q.promoters }} />
+                  </div>
+                  <div className="vx-nps-legend vx-faint">
+                    <span>Detratores (0–6): {q.detractors}</span><span>Neutros (7–8): {q.passives}</span><span>Promotores (9–10): {q.promoters}</span>
+                  </div>
+                  {q.avg != null && <span className="vx-faint">Nota média: {String(q.avg).replace('.', ',')}</span>}
+                </div>
+              );
+            })()}
+            {q.type === 'stars' && (
+              <div className="vx-poll-admin">
+                <p className="vx-comments-question">{q.avg != null ? `${String(q.avg).replace('.', ',')} de 5 estrelas` : 'Sem respostas'}</p>
+                {[5, 4, 3, 2, 1].map((s) => {
+                  const n = q.dist[s - 1];
+                  const pct = q.answered ? Math.round((n * 100) / q.answered) : 0;
+                  return <div key={s} className="vx-poll-admin-row"><span>{'★'.repeat(s)}</span><b className="vx-num">{n} · {pct}%</b><i style={{ width: `${pct}%` }} /></div>;
+                })}
+              </div>
+            )}
+            {q.type === 'choice' && (
+              <div className="vx-poll-admin">
+                {q.options.map((o, k) => <div key={k} className="vx-poll-admin-row"><span>{o}</span><b className="vx-num">{q.counts[k]} · {q.pcts[k]}%</b><i style={{ width: `${q.pcts[k]}%` }} /></div>)}
+              </div>
+            )}
+            {q.type === 'text' && (
+              q.texts.length ? (
+                <ul className="vx-survey-texts">
+                  {q.texts.slice(0, 50).map((t, k) => <li key={k}><span>{t.text}</span>{t.at && <small className="vx-faint">{timeAgo(t.at)}</small>}</li>)}
+                </ul>
+              ) : <p className="vx-faint">Nenhum comentário ainda.</p>
+            )}
+            <span className="vx-faint">{q.answered} {q.answered === 1 ? 'resposta' : 'respostas'}</span>
+          </Card>
+        ))}
+      </div>
+      {confirmDialog}
+    </>
   );
 }

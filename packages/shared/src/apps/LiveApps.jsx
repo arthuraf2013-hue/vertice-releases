@@ -3,6 +3,7 @@ import { qrMatrix, qrPath } from '../qr.js';
 import { commentPage } from '../comments.js';
 import { normalizeQueueConfig, timerAt, timerElapsed, normalizeTimer, wodLines, pollResults, pollOptions, TIMER_MODES } from '../interact.js';
 import { driveImageUrl, streamKind, HLS_CDN } from '../extras.js';
+import { wodForDay } from '../more.js';
 import { timeAgo } from '../format.js';
 import { useNow, Waiting } from './DataApps.jsx';
 
@@ -44,7 +45,7 @@ export function QueueView({ c, d, portrait }) {
         <div className="vxa-over">{cfg.title || 'Senha chamada'}</div>
         {cur ? (
           <div key={cur.n || cur.at} className="vxa-queue-call">
-            <div className="vxa-queue-code">{cur.code}</div>
+            <div className={`vxa-queue-code ${cur.name ? 'is-name' : ''}`}>{cur.code}</div>
             {cur.counter && <div className="vxa-queue-counter">{cur.counter}</div>}
             {label && <div className="vxa-queue-type">{label}</div>}
           </div>
@@ -72,7 +73,7 @@ export function TimerView({ c, d, now, portrait }) {
   const offset = Number(d?.offset) || 0; // diferença do relógio da TV para o do servidor
   const el = d?.demoElapsed != null ? d.demoElapsed : timerElapsed(cfg, d?.state || {}, t + offset);
   const st = timerAt(cfg, el);
-  const wod = wodLines(cfg.wod);
+  const wod = wodLines(wodForDay({ ...c, wod: cfg.wod }, new Date(now || Date.now())));
   const paused = d?.state?.status === 'paused';
   return (
     <div className={`vxa-timer is-${st.phase} ${paused ? 'is-paused' : ''} ${portrait || !wod.length ? 'col' : ''}`}>

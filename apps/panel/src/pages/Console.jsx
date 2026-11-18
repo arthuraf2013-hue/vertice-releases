@@ -12,6 +12,8 @@ import {
   PageHeader, Button, Card, Table, Input, Select, Loading, EmptyState, Modal, useToast, useConfirm, StatusBadge, MetricCard, Toggle, Segmented,
 } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
+import { StoreAdmin } from './Store.jsx';
+import { referralCode } from '@vertice/shared';
 
 const DAY = 86400000;
 const money = (n) => (n ? `R$ ${fmtMoney(n)}` : '—');
@@ -74,6 +76,8 @@ export function Console() {
   const onlineScreens = rows.reduce((a, r) => a + r.screensOnline, 0);
 
   if (!companies) return <Loading />;
+  // Indique e ganhe: código de cada empresa → nome (para mostrar quem indicou quem).
+  const byCode = new Map(companies.map((c) => [referralCode(c.id), c.name]));
   return (
     <div className="vx-page">
       <PageHeader overline="VETTA SISTEMAS" title="Clientes" subtitle="Planos, vencimentos e situação de todas as empresas que usam o Vértice."
@@ -94,7 +98,7 @@ export function Console() {
         </div>
         <Table rows={shown} onRowClick={(r) => setOpen(r.id)} empty={<EmptyState icon="building" title={rows.length ? 'Nenhum cliente neste filtro' : 'Nenhum cliente ainda'}>Use “Novo cliente” para cadastrar uma empresa e convidar o dono.</EmptyState>}
           columns={[
-            { key: 'name', label: 'Cliente', render: (r) => <span className="vx-client-name"><b>{r.name}</b><small>{[r.city, r.ownerEmail].filter(Boolean).join(' · ') || '—'}</small></span> },
+            { key: 'name', label: 'Cliente', render: (r) => <span className="vx-client-name"><b>{r.name}</b><small>{[r.city, r.ownerEmail, r.referredBy ? `indicado por ${byCode.get(r.referredBy) || r.referredBy}${r.referralRewarded ? ' (premiado)' : ''}` : null].filter(Boolean).join(' · ') || '—'}</small></span> },
             { key: 'plan', label: 'Plano', render: (r) => PLANS[r.plan]?.name || r.plan || '—' },
             { key: 'lic', label: 'Situação', render: (r) => <StatusBadge status={r.lic.tone}>{licLabel(r.lic)}</StatusBadge> },
             { key: 'due', label: 'Vence', render: (r) => <span title={r.lic.title}>{day(r.due)}{r.lic.overdue && !r.lic.blocked ? ' (vencido)' : ''}</span> },
@@ -103,6 +107,7 @@ export function Console() {
             { key: 'price', label: 'Mensalidade', align: 'right', render: (r) => money(r.monthlyPrice) },
           ]} />
       </Card>
+      <StoreAdmin />
       {open && <ClientModal company={rows.find((r) => r.id === open)} onClose={() => setOpen(null)} settings={settings} />}
       {creating && <NewClientModal onClose={() => setCreating(false)} settings={settings} onCreated={(id) => { setCreating(false); setOpen(id); }} />}
       {editingSettings && <SettingsModal settings={settings} onClose={() => setEditingSettings(false)} />}

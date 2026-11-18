@@ -239,6 +239,16 @@ export function createDemoBackend() {
     /** IA na demonstração: três sugestões fixas, montadas com o que foi digitado. */
     async aiText(cid, input) {
       await new Promise((r) => setTimeout(r, 900));
+      if (input.mode === 'quiz') {
+        const t = input.topic || 'conhecimentos gerais';
+        return { left: 58, questions: [
+          [`(Exemplo sobre ${t}) Quantos dias tem uma semana?`, '7', '5', '6', '8'],
+          [`(Exemplo sobre ${t}) Qual cor resulta de azul com amarelo?`, 'Verde', 'Roxo', 'Laranja', 'Marrom'],
+        ] };
+      }
+      if (input.mode === 'help') {
+        return { left: 58, answer: 'Na demonstração o assistente responde com um exemplo.\nPara a TV desligar às 22h, vá em Empresa › Horário, ligue o horário de funcionamento e coloque o fechamento às 22:00. Fora do horário a tela fica preta e nada toca.' };
+      }
       const p = input.product || 'Pão de queijo';
       const price = input.price ? ` por R$ ${input.price}` : '';
       return {
@@ -249,6 +259,13 @@ export function createDemoBackend() {
           { badge: 'OFERTA', title: p.slice(0, 32), detail: `O preferido da clientela${price}.`.slice(0, 70), footnote: 'Válido nesta loja' },
         ],
       };
+    },
+    /** Loja na demonstração: cria o pedido como pago na hora (não há cobrança de verdade). */
+    async storeCheckout(cid, input) {
+      await new Promise((r) => setTimeout(r, 700));
+      const id = `ord${Date.now()}`;
+      write(`companies/${cid}/storeOrders/${id}`, { itemId: input.itemId, item: { name: input.itemName || 'Item da loja' }, value: input.value || 0, status: 'pending', invoiceUrl: null, createdAt: Date.now() });
+      return { orderId: id, invoiceUrl: null, demo: true };
     },
     /** Lê, calcula e grava de uma vez (no Firebase, numa transação). `fn(dados)` devolve o que mudar. */
     async transact(path, fn) {

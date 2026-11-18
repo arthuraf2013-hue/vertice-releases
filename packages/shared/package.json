@@ -12,7 +12,8 @@
     "./apps": "./src/apps/AppView.jsx",
     "./apps.css": "./src/apps/apps.css",
     "./comments": "./src/comments.js",
-    "./interact": "./src/interact.js"
+    "./interact": "./src/interact.js",
+    "./survey": "./src/survey.js"
   },
   "scripts": {
     "test": "vitest run"

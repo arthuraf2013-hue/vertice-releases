@@ -2,12 +2,13 @@
 // e a prévia com dados reais quando o navegador consegue ler a fonte (senão, dados de exemplo).
 import { useEffect, useState } from 'react';
 import {
-  geocodeUrl, safeHttpUrl, LEAGUES, NEWS_FEEDS, CURRENCIES, INDICATORS, WORLD_ZONES, APP_SOURCES,
+  geocodeUrl, safeHttpUrl, LEAGUES, NEWS_FEEDS, NEWS_PUBLISHERS, CURRENCIES, INDICATORS, WORLD_ZONES, APP_SOURCES,
   parseBirthdays, parseExtraDates, countdownParts, blockedWordList, COMMENT_LIMITS,
   TIMER_MODES, normalizeTimer, timerTotal, parseStarts, pollOptions, POLL_LIMITS, normalizeQueueConfig, driveFolderId, streamKind,
 } from '@vertice/shared';
 import { Button, Input, Select, Toggle, Segmented, PillGroup } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
+import { WodWeek } from './MoreFields.jsx';
 
 export const OPEN_METEO_KEY = import.meta.env.VITE_OPEN_METEO_KEY || '';
 const CITY_KINDS = ['weather', 'rain', 'air', 'sunmoon'];
@@ -49,7 +50,11 @@ export function CityField({ c, set }) {
   );
 }
 
-const LEAGUE_OPTIONS = [...Object.entries(LEAGUES).map(([id, l]) => ({ value: id, label: l.label })), { value: 'outro', label: 'Outro campeonato (pelo número)' }];
+const LEAGUE_OPTIONS = [
+  ...Object.entries(LEAGUES).filter(([, l]) => !l.state).map(([id, l]) => ({ value: id, label: l.label })),
+  ...Object.entries(LEAGUES).filter(([, l]) => l.state).sort((a, b) => a[1].label.localeCompare(b[1].label)).map(([id, l]) => ({ value: id, label: `Estadual: ${l.label}` })),
+  { value: 'outro', label: 'Outro campeonato (pelo número)' },
+];
 
 function LeagueFields({ c, set, kind }) {
   const known = !!LEAGUES[c.leagueId];
@@ -95,7 +100,8 @@ function FeedsField({ c, set }) {
         </div>
       ))}
       <div className="vx-chips">
-        {NEWS_FEEDS.filter((f) => !feeds.some((x) => x.url === f.url)).map((f) => (
+        {[...NEWS_FEEDS, ...Object.values(NEWS_PUBLISHERS).flatMap((p) => Object.entries(p.feeds).map(([n, url]) => ({ label: Object.keys(p.feeds).length > 1 ? `${p.label} · ${n}` : p.label, url })))]
+          .filter((f, i, all) => all.findIndex((x) => x.url === f.url) === i && !feeds.some((x) => x.url === f.url)).slice(0, 40).map((f) => (
           <button key={f.url} type="button" className="vx-chip-btn" disabled={feeds.length >= 4} onClick={() => add(f)}><Icon name="plus" /> {f.label}</button>
         ))}
         {feeds.length < 4 && <button type="button" className="vx-chip-btn" onClick={() => add({ label: '', url: '' })}><Icon name="plus" /> Outro portal</button>}
@@ -397,6 +403,7 @@ function TimerFields({ c, set }) {
         <span className="vx-label">WOD (um exercício por linha, opcional)</span>
         <textarea className="vx-input vx-textarea" rows={4} value={c.wod} onChange={(e) => set({ wod: e.target.value })} placeholder={'10 burpees\n15 kettlebell swings\n200 m corrida'} />
       </label>
+      <WodWeek c={c} set={set} />
       <Input label="Começar sozinho nos horários (opcional)" value={c.starts} onChange={(e) => set({ starts: e.target.value })} placeholder="06:00, 07:00, 18:30"
         help={starts.length ? `Começa sozinho ${starts.length} vez(es) por dia. Também dá para iniciar e pausar pelo celular.` : 'Em branco: comanda pelo celular, em Operação › Cronômetro.'} />
       <Toggle label="Bipes" help="Nos 3 últimos segundos de cada fase e na troca." checked={c.beeps !== false} onChange={(v) => set({ beeps: v })} />

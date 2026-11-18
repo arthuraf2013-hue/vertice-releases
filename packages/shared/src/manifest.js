@@ -3,6 +3,7 @@ import { normalizeApp, appDefaultSeconds, priceListForTv } from './apps.js';
 import { gifAutoSeconds } from './gif.js';
 import { wallForScreen, wallCell, normalizeWall } from './wall.js';
 import { layoutForScreen, normalizeLayout, hoursFor, normalizeAlert } from './signage.js';
+import { audioKind } from './more.js';
 
 /**
  * O MANIFESTO é o que deixa o player leve: em vez de a TV ouvir telas, grades,
@@ -113,7 +114,7 @@ function expandApp(playlist, it, idx, m, priceById, mediaById) {
   if (!app) return null;
   // Peça do Estúdio com foto: a foto é baixada junto (funciona offline).
   let extraAssets = null;
-  if (app.kind === 'studio' && app.config.imageMediaId) {
+  if (['studio', 'tribute', 'fitness', 'radio'].includes(app.kind) && app.config.imageMediaId) {
     const img = mediaById?.get(app.config.imageMediaId);
     if (img?.url && img.type === 'image') {
       app.image = { mediaId: img.id, url: img.url };
@@ -249,6 +250,10 @@ export function buildManifest({ screen, schedules, playlists, media, company, pr
   const unit = (units || []).find((u) => u.id === screen.unitId);
   const hours = hoursFor(company, unit);
   const alert = normalizeAlert(company?.alert);
+  // Som ambiente: uma rádio tocando de fundo enquanto as mídias passam (baixa quando entra vídeo com som).
+  const amb = screen.ambientMediaId ? mediaById.get(screen.ambientMediaId) : null;
+  const ambientUrl = amb?.app?.kind === 'radio' ? String(amb.app.config?.url || '').trim() : '';
+  const ambient = ambientUrl && audioKind(ambientUrl) ? { url: ambientUrl, name: amb.name || '', volume: Math.max(5, Math.min(100, Number(screen.ambientVolume) || 40)) } : null;
   return {
     screen: {
       id: screen.id,
@@ -270,6 +275,7 @@ export function buildManifest({ screen, schedules, playlists, media, company, pr
     hours: hours.enabled || hours.volumes.length || hours.volume !== 100 ? hours : null,
     // Alerta urgente: só se for para esta tela (a TV confere o prazo).
     alert: alert && (!alert.screenIds || alert.screenIds.includes(screen.id)) ? alert : null,
+    ambient,
     slots,
     fallback,
     assets,

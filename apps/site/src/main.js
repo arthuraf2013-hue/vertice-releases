@@ -36,3 +36,9 @@ fetch(`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(defaul
     }
   })
   .catch(() => {});
+
+// Indique e ganhe: quem chega por um link de indicação (?ref=CODIGO) leva o código até o cadastro no painel.
+try {
+  const ref = new URLSearchParams(location.search).get('ref');
+  if (ref && /^[A-Za-z0-9]{4,12}$/.test(ref)) localStorage.setItem('vx-ref', ref.toUpperCase());
+} catch { /* sem storage */ }

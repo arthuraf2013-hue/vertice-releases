@@ -12,6 +12,12 @@ import { Media } from './pages/Media.jsx';
 import { Playlists } from './pages/Playlists.jsx';
 import { Schedules } from './pages/Schedules.jsx';
 import { Company } from './pages/Company.jsx';
+import { Library } from './pages/Library.jsx';
+import { Calculator } from './pages/Calculator.jsx';
+import { Crm } from './pages/Crm.jsx';
+import { Academy } from './pages/Academy.jsx';
+import { Referral } from './pages/Referral.jsx';
+import { Store } from './pages/Store.jsx';
 import { Downloads } from './pages/Downloads.jsx';
 import { Captures } from './pages/Captures.jsx';
 import { Apps } from './pages/Apps.jsx';
@@ -85,6 +91,12 @@ function Gate() {
         <Route path="midia-indoor" element={<IndoorMedia />} />
         <Route path="empresa" element={<Company />} />
         <Route path="downloads" element={<Downloads />} />
+        <Route path="biblioteca" element={<Library />} />
+        <Route path="calculadora" element={<Calculator />} />
+        <Route path="crm" element={<Crm />} />
+        <Route path="academia" element={<Academy />} />
+        <Route path="indique" element={<Referral />} />
+        <Route path="loja" element={<Store />} />
         {s.isVetta && <Route path="vetta" element={<Console />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

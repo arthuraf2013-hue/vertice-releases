@@ -16,3 +16,6 @@ export * from './license.js';
 export * from './signage.js';
 export * from './interact.js';
 export * from './extras.js';
+export * from './more.js';
+export * from './presets.js';
+export * from './survey.js';

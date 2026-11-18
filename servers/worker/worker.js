@@ -6,6 +6,7 @@
 //   - a cada hora: avisos de fim do teste grátis e de vencimento da mensalidade (uma vez cada),
 //     e correção do contador de telas de cada empresa
 //   - todo dia às 8h: resumo para a Vetta (bloqueados, vencidos, testes acabando)
+//   - Loja: cobrança pelo Asaas e confirmação do pagamento (store.js, porta 8788)
 //
 // Usa uma conta de serviço do Firebase (Admin SDK): ela ignora as regras, então este processo
 // fica só no servidor da Vetta. Configuração em .env ao lado deste arquivo (veja .env.example).
@@ -14,6 +15,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeApp, applicationDefault, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { startStore } from './store.js';
 import nodemailer from 'nodemailer';
 import { inQuiet, screenTransitions, offlineMessage, billingNotices } from './rules.js';
 
@@ -210,6 +213,8 @@ if (ONCE) {
   await safe('resumo', runDigest);
   process.exit(0);
 } else {
+  // Loja (cobrança pelo Asaas): sobe junto, só ouve no próprio servidor (o Caddy repassa /v1/loja e /v1/asaas).
+  if (process.env.STORE_DISABLED !== '1') startStore({ db, auth: getAuth(), FieldValue, Timestamp, log });
   log(`Serviço de alertas no ar. Fuso ${TZ}. E-mail: ${mailer ? 'ligado' : 'desligado'}. WhatsApp: ${process.env.WHATSAPP_PROVIDER || 'desligado'}.`);
   for (const j of jobs) {
     safe(j.name, j.run);

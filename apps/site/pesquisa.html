@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Pesquisa de satisfação</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body class="cm">
+  <main class="cm-main" aria-live="polite">
+    <p class="cm-store" data-store>Carregando…</p>
+
+    <form class="cm-card" data-view="form" hidden novalidate>
+      <h1 class="cm-q" data-title></h1>
+      <div class="ps-questions" data-questions></div>
+      <p class="cm-error" data-error hidden></p>
+      <button class="cm-send" type="submit" data-send>Enviar respostas</button>
+      <p class="cm-legal">Resposta anônima, uma por aparelho. Não pedimos nome nem contato. <a href="/privacidade">Política de privacidade</a></p>
+    </form>
+
+    <section class="cm-card cm-done" data-view="done" hidden>
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M7.5 12.5l3 3 6-6.5" /></svg>
+      <h1 data-done-title>Obrigado!</h1>
+      <p data-done-text>Sua opinião ajuda a gente a melhorar.</p>
+    </section>
+
+    <section class="cm-card cm-done" data-view="closed" hidden>
+      <h1>Pesquisa encerrada</h1>
+      <p data-closed-text>Esta pesquisa não está recebendo respostas agora.</p>
+    </section>
+  </main>
+  <footer class="cm-foot">Pesquisa do <a href="/">Vértice</a></footer>
+  <script type="module" src="/src/pesquisa.js"></script>
+</body>
+</html>

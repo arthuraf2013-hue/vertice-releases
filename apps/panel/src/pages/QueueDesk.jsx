@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { normalizeQueueConfig, callNext, callAgain, callNumber, timeAgo } from '@vertice/shared';
+import { normalizeQueueConfig, callNext, callAgain, callNumber, callName, timeAgo } from '@vertice/shared';
 import { useSession } from '../session.jsx';
 import { useCol, useDoc, useNow } from '../data/hooks.js';
 import { api } from '../data/api.js';
@@ -21,6 +21,7 @@ export function QueueDesk() {
   const [qid, setQid] = useState(() => recall('vx-queue'));
   const [counter, setCounter] = useState(() => recall('vx-counter'));
   const [num, setNum] = useState('');
+  const [who, setWho] = useState('');
   const [busy, setBusy] = useState(false);
   const now = useNow();
   const app = apps?.find((a) => a.id === qid) || apps?.[0];
@@ -56,6 +57,12 @@ export function QueueDesk() {
     if (!Number(num)) return toast('Digite o número da senha.');
     run((cur) => ({ ...callNumber(cur, { prefix, number: num, counter: desk, digits: cfg.digits }), updatedAt: Date.now() }), (c) => `Chamando ${c.code}.`);
     setNum('');
+  };
+  const byName = (e) => {
+    e.preventDefault();
+    if (!who.trim()) return toast('Digite o nome.');
+    run((cur) => { const p = callName(cur, { name: who, counter: desk }); return p ? { ...p, updatedAt: Date.now() } : null; }, (c) => `Chamando ${c.code}.`);
+    setWho('');
   };
   const reset = async () => {
     if (!(await confirm({ title: 'Zerar as senhas?', message: 'A próxima chamada de cada tipo volta para o número 1. Use no começo do dia.', confirmLabel: 'Zerar', danger: true }))) return;
@@ -97,6 +104,13 @@ export function QueueDesk() {
             </button>
           ))}
         </div>
+        <Card title="Chamar pelo nome" icon="user">
+          <form className="vx-inline-search" onSubmit={byName}>
+            <input className="vx-input" value={who} maxLength={40} onChange={(e) => setWho(e.target.value)} placeholder="Ex.: Maria Souza" aria-label="Nome para chamar" />
+            <Button type="submit" icon="bell" loading={busy}>Chamar</Button>
+          </form>
+          <p className="vx-help">A TV mostra e fala o nome com o seu guichê ou sala. Bom para consultórios, salões e restaurantes.</p>
+        </Card>
         <Card title="Chamar um número" icon="search">
           <div className="vx-desk-pick">
             <Input label="Número" type="number" inputMode="numeric" min={1} max={999} value={num} onChange={(e) => setNum(e.target.value)} />

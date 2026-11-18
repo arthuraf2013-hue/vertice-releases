@@ -7,7 +7,7 @@ export default defineConfig({
   base: '/',
   envDir: fileURLToPath(new URL('../panel', import.meta.url)),
   build: {
-    rollupOptions: { input: { index: 'index.html', termos: 'termos.html', privacidade: 'privacidade.html', comentar: 'comentar.html', votar: 'votar.html', midia: 'midia.html' } },
+    rollupOptions: { input: { index: 'index.html', termos: 'termos.html', privacidade: 'privacidade.html', comentar: 'comentar.html', votar: 'votar.html', midia: 'midia.html', pesquisa: 'pesquisa.html' } },
   },
   server: { port: 5175 },
 });

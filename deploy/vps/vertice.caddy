@@ -1,8 +1,18 @@
 # Vértice: HTTPS automático na frente do servidor de mídias (gerado pelo instalar.sh).
 @DOMINIO@ {
-	reverse_proxy 127.0.0.1:8787 {
-		# Vídeos grandes: repassa sem segurar em memória.
-		flush_interval -1
+	# Loja e confirmação de pagamento do Asaas: serviço de alertas (porta 8788).
+	handle /v1/loja/* {
+		reverse_proxy 127.0.0.1:8788
+	}
+	handle /v1/asaas/* {
+		reverse_proxy 127.0.0.1:8788
+	}
+	# O resto: servidor de mídias.
+	handle {
+		reverse_proxy 127.0.0.1:8787 {
+			# Vídeos grandes: repassa sem segurar em memória.
+			flush_interval -1
+		}
 	}
 	header -Server
 }

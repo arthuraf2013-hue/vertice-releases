@@ -172,7 +172,9 @@ function ScreenEditor({ screen, groups, now, mediaById, onClose }) {
   const [f, setF] = useState(() => ({
     name: screen.name || '', unitId: screen.unitId || '', groupIds: screen.groupIds || [],
     display: screenDisplay(screen), orderBoard: { ...ORDER_BOARD_DEFAULTS, ...(screen.orderBoard || {}) },
+    ambientMediaId: screen.ambientMediaId || '', ambientVolume: Number(screen.ambientVolume) || 40,
   }));
+  const radios = [...(mediaById?.values?.() || [])].filter((m) => m.app?.kind === 'radio');
   const [calibUntil, setCalibUntil] = useState(() => Number(screen.calibrateUntil) || 0);
   const [calibBusy, setCalibBusy] = useState(false);
   const calibrating = calibUntil > now;
@@ -190,6 +192,7 @@ function ScreenEditor({ screen, groups, now, mediaById, onClose }) {
         name: f.name.trim() || screen.code, unitId: f.unitId || null, groupIds: f.groupIds,
         display: f.display, orientation: orientationOf(f.display.rotation), calibrateUntil: 0,
         orderBoard: { ...ob, overlaySec: Number(ob.overlaySec), readyTtlMin: Number(ob.readyTtlMin) },
+        ambientMediaId: f.ambientMediaId || null, ambientVolume: Number(f.ambientVolume) || 40,
       });
       await rebuildManifests(companyId, [screen.id]);
       toast('Tela atualizada. A TV recebe a mudança em segundos.');
@@ -282,6 +285,17 @@ function ScreenEditor({ screen, groups, now, mediaById, onClose }) {
         <PillGroup label="Grupos" value={f.groupIds} onChange={(groupIds) => setF({ ...f, groupIds })}
           options={groups.map((g) => ({ value: g.id, label: g.name }))}
           help={groups.length ? 'A tela recebe as grades publicadas para estes grupos.' : 'Crie grupos na aba Grupos.'} />
+
+        <div className="vx-subsection">
+          <h3 className="vx-subtitle"><Icon name="radio" />Som ambiente</h3>
+          <p className="vx-help">Uma rádio tocando de fundo enquanto as mídias passam. Ela some sozinha quando entra um vídeo com som e fica muda fora do expediente.</p>
+          <div className="vx-form-row">
+            <Select label="Rádio de fundo" value={f.ambientMediaId} disabled={readOnly} onChange={(e) => setF({ ...f, ambientMediaId: e.target.value })}
+              options={[{ value: '', label: radios.length ? 'Sem som ambiente' : 'Crie uma rádio em Aplicativos' }, ...radios.map((m) => ({ value: m.id, label: m.name }))]} />
+            <Select label="Volume" value={String(f.ambientVolume)} disabled={readOnly || !f.ambientMediaId} onChange={(e) => setF({ ...f, ambientVolume: Number(e.target.value) })}
+              options={[15, 25, 40, 60, 80, 100].map((v) => ({ value: String(v), label: `${v}%` }))} />
+          </div>
+        </div>
 
         <div className="vx-subsection">
           <h3 className="vx-subtitle"><Icon name="monitor" />Posição na TV</h3>

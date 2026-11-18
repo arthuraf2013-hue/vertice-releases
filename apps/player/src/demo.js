@@ -64,7 +64,18 @@ const DEMO_APPS = {
   photowall: { kind: 'photowall', config: { title: 'Festa de 10 anos', question: 'Mande sua foto e apareça no telão!', showQr: true, rotateSec: 6, boardId: 'demo', link: 'https://vertice.vettasistemas.com.br/comentar?e=demo&m=demo', layout: params.get('layout') === 'single' ? 'single' : 'mosaic', theme: 'night' } },
   drive: { kind: 'drive', config: { url: 'https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp', seconds: 6, theme: 'night' } },
   stream: { kind: 'stream', config: { url: 'https://example.com/live/index.m3u8', title: 'Canal da loja' } },
-  sheet: { kind: 'sheet', config: { url: 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit#gid=0', title: 'Escala da semana', rows: 8, header: true, theme: 'night' } },
+  sheet: { kind: 'sheet', config: { url: 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit#gid=0', title: 'Escala da semana', rows: 8, header: true, mode: params.get('mode') || 'table', theme: 'night' } },
+  lottery: { kind: 'lottery', config: { games: ['megasena', 'lotofacil', 'quina'], everySec: 8, theme: 'night' } },
+  horoscope: { kind: 'horoscope', config: { everySec: 4, theme: 'night' } },
+  quiz: { kind: 'quiz', config: { title: 'Quiz do dia', perDay: 5, thinkSec: 10, revealSec: 5, useBank: true, theme: 'brand' } },
+  agro: { kind: 'agro', config: { title: 'Cotações do agro', items: [2, 12, 77, 23, 53, 124, 130, 3], theme: 'green' } },
+  tribute: { kind: 'tribute', config: { name: 'Ana Souza', role: 'Equipe financeira', message: 'Feliz aniversário! Que seu novo ano seja incrível.', template: params.get('tpl') || 'confete' } },
+  classes: { kind: 'classes', config: { title: 'Aulas de hoje', list: 'todo dia 06:00-07:00 Funcional | Prof. Rafa | Sala 1\ntodo dia 07:00-08:00 Spinning | Prof. Ana | Sala 2\ntodo dia 12:00-13:00 Pilates | Carla | Sala 3\ntodo dia 18:00-19:00 Muay thai | Diego | Tatame\ntodo dia 19:00-20:00 Zumba | Bia | Sala 1\ntodo dia 20:00-21:00 Alongamento | Edu | Sala 2', theme: 'night' } },
+  fitness: { kind: 'fitness', config: { back: params.get('back') || 'iron', count: 3, everySec: 8 } },
+  room: { kind: 'room', config: { name: 'Sala Capibaribe', url: 'https://example.com/sala.ics', theme: 'night' } },
+  survey: { kind: 'survey', config: { title: 'Sua opinião importa', subtitle: 'Leva menos de 1 minuto', questions: [{ type: 'nps', text: 'De 0 a 10, quanto você recomendaria a gente a um amigo?' }, { type: 'stars', text: 'Como foi o atendimento hoje?' }], link: 'https://vertice.vettasistemas.com.br/pesquisa?e=demo&m=demo', theme: 'brand' } },
+  radio: { kind: 'radio', config: { url: 'https://example.com/radio.mp3', name: 'Rádio Boa Massa', slogan: 'A trilha do seu café da manhã', theme: 'night' } },
+  clock2: { kind: 'clock', config: { style: 'both', showSeconds: true, dateFormat: 'full', message: 'Bom dia! Pão quentinho até as 10h', theme: 'brand' } },
 };
 // Peças do Estúdio (&app=studio&tpl=offer|notice|menu|welcome|event), com uma "foto" desenhada.
 const PHOTO = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><defs><radialGradient id="g" cx=".4" cy=".4"><stop offset="0" stop-color="#F2C46B"/><stop offset=".6" stop-color="#B8642A"/><stop offset="1" stop-color="#3B1A0C"/></radialGradient></defs><rect width="1200" height="900" fill="url(#g)"/><circle cx="600" cy="470" r="250" fill="#E9B26A" stroke="#7A3B14" stroke-width="30"/><path d="M380 470 Q600 300 820 470" stroke="#7A3B14" stroke-width="18" fill="none"/></svg>')}`;

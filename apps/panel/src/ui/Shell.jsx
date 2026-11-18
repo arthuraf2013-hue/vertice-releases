@@ -15,9 +15,10 @@ import { activeAlert, endAlert } from '../pages/Alert.jsx';
 const NAV = [
   ['PAINEL', [['/', 'dashboard', 'Dashboard']]],
   ['OPERAÇÃO', [['/telas', 'screen', 'Telas'], ['/monitoramento', 'pulse', 'Monitoramento'], ['/mapa', 'map', 'Mapa de telas'], ['/capturas', 'camera', 'Capturas'], ['/alerta', 'siren', 'Alerta urgente'], ['/senhas', 'bell', 'Chamar senha', 'queue'], ['/cronometro', 'hourglass', 'Cronômetro', 'timer']]],
-  ['CONTEÚDO', [['/midias', 'image', 'Mídias'], ['/playlists', 'playlist', 'Playlists'], ['/programacao', 'calendar', 'Programação'], ['/layouts', 'layout', 'Layouts'], ['/aplicativos', 'apps', 'Aplicativos'], ['/comentarios', 'message', 'Interação'], ['/price', 'tag', 'Price'], ['/estudio', 'palette', 'Estúdio'], ['/videowall', 'wall', 'Video wall']]],
-  ['COMERCIAL', [['/anunciantes', 'megaphone', 'Anunciantes'], ['/midia-indoor', 'building', 'Mídia indoor'], ['/relatorios', 'chart', 'Relatórios']]],
-  ['GESTÃO', [['/empresa', 'building', 'Empresa'], ['/downloads', 'download', 'Downloads']]],
+  ['CONTEÚDO', [['/midias', 'image', 'Mídias'], ['/biblioteca', 'library', 'Biblioteca'], ['/playlists', 'playlist', 'Playlists'], ['/programacao', 'calendar', 'Programação'], ['/layouts', 'layout', 'Layouts'], ['/aplicativos', 'apps', 'Aplicativos'], ['/comentarios', 'message', 'Interação'], ['/price', 'tag', 'Price'], ['/estudio', 'palette', 'Estúdio'], ['/videowall', 'wall', 'Video wall']]],
+  ['COMERCIAL', [['/crm', 'funnel', 'CRM'], ['/anunciantes', 'megaphone', 'Anunciantes'], ['/midia-indoor', 'building', 'Mídia indoor'], ['/calculadora', 'calculator', 'Calculadora'], ['/relatorios', 'chart', 'Relatórios']]],
+  ['GESTÃO', [['/empresa', 'building', 'Empresa'], ['/loja', 'cart', 'Loja'], ['/indique', 'gift', 'Indique e ganhe'], ['/downloads', 'download', 'Downloads']]],
+  ['AJUDA', [['/academia', 'school', 'Academia']]],
 ];
 
 const VETTA_NAV = ['VETTA SISTEMAS', [['/vetta', 'key', 'Clientes']]];

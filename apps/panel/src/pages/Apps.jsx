@@ -4,6 +4,7 @@ import {
   youtubeId, safeHttpUrl, formatDateTime, sheetCsvUrl, sheetTable, qrContent, parsePrice,
   APP_SOURCES, sampleComments, commentLink, blockPattern, blockedWordList,
   voteLink, pollOptions, normalizeQueueConfig, sampleQueue, sampleTally, samplePhotos,
+  APP_PRESETS, surveyLink, normalizeSurveyQuestions, parseM3u,
 } from '@vertice/shared';
 import { AppView } from '@vertice/shared/apps';
 import { useSession } from '../session.jsx';
@@ -16,9 +17,14 @@ import {
 import { Icon } from '../ui/Icon.jsx';
 import { siteBase } from '../data/site.js';
 import { NewAppFields, validateNewApp, useSourcePreview, CityField, OPEN_METEO_KEY } from './AppFields.jsx';
+import { MoreAppFields, validateMoreApp, ClockExtra, YoutubeFields, SheetMode, usePhotoUrl } from './MoreFields.jsx';
 
-const CATALOG = Object.entries(APP_KINDS).filter(([, d]) => !d.managed);
-const GROUPS = ['Todos', ...new Set(CATALOG.map(([, d]) => d.group))];
+// Catálogo: os tipos de aplicativo e os atalhos prontos (portais, campeonatos, playlist, IPTV).
+const CATALOG = [
+  ...Object.entries(APP_KINDS).filter(([, d]) => !d.managed).map(([kind, d]) => ({ id: kind, kind, ...d })),
+  ...APP_PRESETS.map((p) => ({ ...p, preset: true })),
+];
+const GROUPS = ['Todos', ...new Set(CATALOG.map((d) => d.group))];
 const FEEDS = [
   ['g1 Brasil', 'https://g1.globo.com/rss/g1/'],
   ['g1 Pernambuco', 'https://g1.globo.com/rss/g1/pernambuco/'],
@@ -37,6 +43,7 @@ export function Apps() {
   const playlists = useCol(`${base}/playlists`);
   const [group, setGroup] = useState('Todos');
   const [edit, setEdit] = useState(null);
+  const [iptv, setIptv] = useState(false);
 
   const usage = useMemo(() => {
     const m = new Map();
@@ -46,13 +53,13 @@ export function Apps() {
 
   if (!media) return <Loading />;
   const mine = media.filter((m) => APP_KINDS[m.app?.kind] && !APP_KINDS[m.app.kind].managed).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  const catalog = CATALOG.filter(([, d]) => group === 'Todos' || d.group === group);
+  const catalog = CATALOG.filter((d) => group === 'Todos' || d.group === group);
 
-  const open = (kind, existing) => {
+  const open = (kind, existing, preset) => {
     const def = APP_KINDS[kind];
     setEdit(existing
       ? { id: existing.id, kind, name: existing.name, seconds: existing.defaultDurationSec || '', config: normalizeApp(existing.app).config }
-      : { kind, name: def.label, seconds: '', config: { ...def.defaults } });
+      : { kind, name: preset?.name || def.label, seconds: '', config: { ...def.defaults, ...(preset?.config || {}) } });
   };
 
   const save = async (e) => {
@@ -66,6 +73,7 @@ export function Apps() {
     if (e.kind === 'comments' || e.kind === 'photowall') return saveBoard(e, data);
     if (e.kind === 'poll') return savePoll(e, data);
     if (e.kind === 'queue' || e.kind === 'timer') return saveLive(e, data);
+    if (e.kind === 'survey') return saveSurvey(e, data);
     if (e.id) {
       await api.update(`${base}/media/${e.id}`, data);
       if (usage.has(e.id)) await rebuildManifests(companyId);
@@ -125,6 +133,40 @@ export function Apps() {
     setEdit(null);
   };
 
+  /** Pesquisa: a mídia (QR na TV) e o questionário público. Mudou as perguntas, começa uma rodada nova. */
+  const saveSurvey = async (e, data) => {
+    const id = e.id || api.newId(`${base}/media`);
+    const questions = normalizeSurveyQuestions(e.config.questions);
+    const config = { ...e.config, questions, surveyId: id, link: surveyLink(siteBase(), companyId, id) };
+    const prev = e.id ? await api.getDoc(`${base}/surveys/${id}`) : null;
+    const changed = !prev || JSON.stringify(prev.questions || []) !== JSON.stringify(questions);
+    const round = prev ? (Number(prev.round) || 0) + (changed ? 1 : 0) : 0;
+    await api.batch([
+      e.id
+        ? { op: 'update', path: `${base}/media/${id}`, data: { ...data, app: { kind: 'survey', config } } }
+        : { op: 'set', path: `${base}/media/${id}`, data: { ...data, app: { kind: 'survey', config }, sizeBytes: 0, createdAt: api.NOW, createdBy: member?.name || '' } },
+      { op: 'set', merge: true, path: `${base}/surveys/${id}`, data: { title: String(config.title || '').slice(0, 50), questions, round, companyName: company?.name || '', theme: config.theme || 'brand', updatedAt: api.NOW, ...(prev ? {} : { open: true }) } },
+    ]);
+    if (usage.has(id)) await rebuildManifests(companyId);
+    toast(e.id ? (changed && prev ? 'Pesquisa salva. As perguntas mudaram, então começou uma rodada nova de respostas.' : 'Pesquisa salva.') : 'Pesquisa criada. Coloque numa playlist; o relatório fica em Interação › Pesquisas.');
+    setEdit(null);
+  };
+
+  /** Lista IPTV: cada canal escolhido vira um app "TV ao vivo". */
+  const importChannels = async (channels) => {
+    const ops = channels.map((ch) => ({
+      op: 'set',
+      path: `${base}/media/${api.newId(`${base}/media`)}`,
+      data: {
+        type: 'app', name: ch.name, app: { kind: 'stream', config: { ...APP_KINDS.stream.defaults, url: ch.url, title: ch.name, group: ch.group || '' } },
+        defaultDurationSec: null, sizeBytes: 0, createdAt: api.NOW, updatedAt: api.NOW, createdBy: member?.name || '',
+      },
+    }));
+    for (let i = 0; i < ops.length; i += 400) await api.batch(ops.slice(i, i + 400));
+    toast(`${channels.length} ${channels.length === 1 ? 'canal importado' : 'canais importados'}. Eles aparecem em Seus aplicativos e já podem entrar nas playlists.`);
+    setIptv(false);
+  };
+
   /** Senhas e cronômetro: a mídia e o documento que a TV escuta (o estado ao vivo). */
   const saveLive = async (e, data) => {
     const id = e.id || api.newId(`${base}/media`);
@@ -151,7 +193,7 @@ export function Apps() {
     const used = usage.get(m.id);
     const ok = await confirm({
       title: `Excluir "${m.name}"?`,
-      message: `${used ? `Ele sai das playlists: ${[...used].join(', ')}.` : 'Ele não está em nenhuma playlist.'}${m.app?.kind === 'comments' ? ' Os comentários do mural também são apagados.' : m.app?.kind === 'photowall' ? ' As fotos enviadas também são apagadas.' : m.app?.kind === 'poll' ? ' Os votos também são apagados.' : ''}`,
+      message: `${used ? `Ele sai das playlists: ${[...used].join(', ')}.` : 'Ele não está em nenhuma playlist.'}${m.app?.kind === 'comments' ? ' Os comentários do mural também são apagados.' : m.app?.kind === 'photowall' ? ' As fotos enviadas também são apagadas.' : m.app?.kind === 'poll' ? ' Os votos também são apagados.' : m.app?.kind === 'survey' ? ' As respostas também são apagadas.' : ''}`,
       confirmLabel: 'Excluir',
       danger: true,
     });
@@ -171,6 +213,11 @@ export function Apps() {
       const votes = await api.getCol(`${base}/polls/${m.id}/votes`);
       for (const v of votes.slice(0, 400)) ops.push({ op: 'delete', path: `${base}/polls/${m.id}/votes/${v.id}` });
       ops.push({ op: 'delete', path: `${base}/polls/${m.id}` }, { op: 'delete', path: `${base}/pollTallies/${m.id}` });
+    }
+    if (m.app?.kind === 'survey') {
+      const resp = await api.getCol(`${base}/surveys/${m.id}/responses`);
+      for (const r of resp.slice(0, 450)) ops.push({ op: 'delete', path: `${base}/surveys/${m.id}/responses/${r.id}` });
+      ops.push({ op: 'delete', path: `${base}/surveys/${m.id}` });
     }
     if (m.app?.kind === 'queue') ops.push({ op: 'delete', path: `${base}/queues/${m.id}` });
     if (m.app?.kind === 'timer') ops.push({ op: 'delete', path: `${base}/timers/${m.id}` });
@@ -219,7 +266,7 @@ export function Apps() {
           <span className="vx-overline">Explorar por tipo</span>
           {GROUPS.map((g) => (
             <button key={g} type="button" className={group === g ? 'is-on' : ''} onClick={() => setGroup(g)}>
-              {g}<span className="vx-num">{g === 'Todos' ? CATALOG.length : CATALOG.filter(([, d]) => d.group === g).length}</span>
+              {g}<span className="vx-num">{g === 'Todos' ? CATALOG.length : CATALOG.filter((d) => d.group === g).length}</span>
             </button>
           ))}
           <div className="vx-apps-hint">
@@ -228,18 +275,22 @@ export function Apps() {
           </div>
         </nav>
         <div className="vx-apps-grid">
-          {catalog.map(([kind, d]) => (
-            <div key={kind} className="vx-card vx-app-card">
-              <div className="vx-app-card-top"><span className="vx-tile vx-tile-accent"><Icon name={d.icon} /></span><Chip>{d.group}</Chip></div>
+          {catalog.map((d) => (
+            <div key={d.id} className="vx-card vx-app-card">
+              <div className="vx-app-card-top">
+                {d.brand ? <span className="vx-tile vx-tile-brand" style={{ background: d.brand }}>{d.label.slice(0, 3)}</span> : <span className="vx-tile vx-tile-accent"><Icon name={d.icon} /></span>}
+                <Chip>{d.group}</Chip>
+              </div>
               <h3>{d.label}</h3>
               <p className="vx-faint">{d.desc}</p>
-              {can('editor') && <Button size="sm" icon="plus" onClick={() => open(kind)}>Configurar</Button>}
+              {can('editor') && <Button size="sm" icon={d.action ? 'upload' : 'plus'} onClick={() => (d.action === 'iptv' ? setIptv(true) : open(d.kind, null, d.preset ? d : null))}>{d.action ? 'Importar lista' : 'Configurar'}</Button>}
             </div>
           ))}
         </div>
       </div>
 
       {edit && <AppEditor value={edit} onChange={setEdit} onClose={() => setEdit(null)} onSave={save} />}
+      {iptv && <IptvImport onClose={() => setIptv(false)} onImport={importChannels} />}
       {confirmDialog}
     </div>
   );
@@ -251,6 +302,7 @@ function AppEditor({ value, onChange, onClose, onSave }) {
   const c = value.config;
   const set = (p) => onChange({ ...value, config: { ...c, ...p } });
   const problem = validate(value);
+  const photo = usePhotoUrl(c.imageMediaId);
   const submit = async () => {
     setBusy(true);
     try { await onSave(value); } finally { setBusy(false); }
@@ -268,6 +320,7 @@ function AppEditor({ value, onChange, onClose, onSave }) {
           {value.kind === 'clock' && (
             <>
               <Input label="Mensagem (opcional)" value={c.message} maxLength={80} onChange={(e) => set({ message: e.target.value })} placeholder="Ex.: Bom dia! Pão quentinho até as 10h." />
+              <ClockExtra c={c} set={set} />
               <Toggle label="Mostrar a data" checked={c.showDate !== false} onChange={(v) => set({ showDate: v })} />
               <Toggle label="Mostrar os segundos" checked={!!c.showSeconds} onChange={(v) => set({ showSeconds: v })} />
             </>
@@ -301,12 +354,7 @@ function AppEditor({ value, onChange, onClose, onSave }) {
                 options={[[0, 'Nunca'], [5, 'A cada 5 min'], [15, 'A cada 15 min'], [60, 'A cada 1 h']].map(([v, l]) => ({ value: String(v), label: l }))} />
             </>
           )}
-          {value.kind === 'youtube' && (
-            <>
-              <Input label="Link do vídeo" value={c.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://www.youtube.com/watch?v=…" />
-              <Toggle label="Sem som" help="Muitas TVs só tocam automático sem som." checked={c.muted !== false} onChange={(v) => set({ muted: v })} />
-            </>
-          )}
+          {value.kind === 'youtube' && <YoutubeFields c={c} set={set} />}
           {value.kind === 'qr' && <QrFields c={c} set={set} />}
           {value.kind === 'sheet' && (
             <>
@@ -317,15 +365,17 @@ function AppEditor({ value, onChange, onClose, onSave }) {
                 <Select label="Linhas na tela" value={String(c.rows)} onChange={(e) => set({ rows: Number(e.target.value) })} options={[5, 8, 10, 12, 15, 20].map((n) => ({ value: String(n), label: String(n) }))} />
                 <Toggle label="Primeira linha é o cabeçalho" checked={c.header !== false} onChange={(v) => set({ header: v })} />
               </div>
+              <SheetMode c={c} set={set} />
             </>
           )}
           <NewAppFields kind={value.kind} c={c} set={set} />
+          <MoreAppFields kind={value.kind} c={c} set={set} />
           {'theme' in def.defaults && (
             <Select label="Cores" value={c.theme} onChange={(e) => set({ theme: e.target.value })} options={Object.entries(APP_THEMES).map(([k, t]) => ({ value: k, label: t.label }))} />
           )}
           {problem && <p className="vx-help vx-help-warn"><Icon name="alert" />{problem}</p>}
         </div>
-        <AppPreview app={{ kind: value.kind, config: c }} />
+        <AppPreview app={{ kind: value.kind, config: c }} imageSrc={photo} />
       </div>
     </Modal>
   );
@@ -333,12 +383,12 @@ function AppEditor({ value, onChange, onClose, onSave }) {
 
 function validate(v) {
   const c = v.config;
-  const fresh = validateNewApp(v.kind, c);
+  const fresh = validateNewApp(v.kind, c) || validateMoreApp(v.kind, c);
   if (fresh) return fresh;
   if (v.kind === 'weather' && (c.lat == null || c.lon == null)) return 'Escolha a cidade.';
   if (v.kind === 'rss' && !safeHttpUrl(c.url)) return 'Informe o endereço do feed (começando com https://).';
   if (v.kind === 'web' && !safeHttpUrl(c.url)) return 'Informe o endereço do site (começando com https://).';
-  if (v.kind === 'youtube' && !youtubeId(c.url)) return 'Cole um link de vídeo do YouTube.';
+  if (v.kind === 'youtube' && (!c.source || c.source === 'video') && !youtubeId(c.url)) return 'Cole um link de vídeo do YouTube.';
   if (v.kind === 'ticker' && !(c.lines || []).some((l) => l.trim())) return 'Escreva pelo menos um aviso.';
   if (v.kind === 'sheet' && !sheetCsvUrl(c.url)) return 'Cole o link de uma planilha do Google (docs.google.com/spreadsheets/…).';
   if (v.kind === 'qr') {
@@ -437,7 +487,8 @@ export function AppPreview({ app, portraitDefault = false, imageSrc = null }) {
   // Apps de dados: a fonte de verdade quando o navegador deixa ler; senão, exemplo.
   const src = useSourcePreview(app.kind, c);
   const shown = (app.kind === 'comments' || app.kind === 'photowall') && !c.link ? { ...app, config: { ...c, link: `${siteBase()}comentar` } }
-    : app.kind === 'poll' && !c.link ? { ...app, config: { ...c, link: `${siteBase()}votar` } } : app;
+    : app.kind === 'poll' && !c.link ? { ...app, config: { ...c, link: `${siteBase()}votar` } }
+      : app.kind === 'survey' && !c.link ? { ...app, config: { ...c, link: `${siteBase()}pesquisa` } } : app;
   const live = app.kind === 'queue' ? sampleQueue() : app.kind === 'timer' ? { demoElapsed: 10 + 4 * 60 + 37 } : app.kind === 'poll' ? { tally: sampleTally(pollOptions(c.options).length || 3) } : null;
   return (
     <div className="vx-app-preview">
@@ -455,6 +506,9 @@ export function AppPreview({ app, portraitDefault = false, imageSrc = null }) {
       {app.kind === 'photowall' && <p className="vx-help">Na prévia aparecem fotos de exemplo. A TV mostra as que você aprovar.</p>}
       {(app.kind === 'queue' || app.kind === 'timer' || app.kind === 'poll') && <p className="vx-help">Prévia com dados de exemplo. Na TV, tudo muda ao vivo.</p>}
       {app.kind === 'stream' && <p className="vx-help">A transmissão toca só na TV (precisa de internet lá).</p>}
+      {(app.kind === 'cinema' || app.kind === 'powerbi') && <p className="vx-help">O vídeo e o relatório abrem só na TV; aqui aparece o desenho da tela.</p>}
+      {app.kind === 'radio' && <p className="vx-help">O som toca só na TV.</p>}
+      {app.kind === 'quiz' && <p className="vx-help">Prévia parada na primeira pergunta. Na TV, as perguntas passam com a contagem e a resposta.</p>}
     </div>
   );
 }
@@ -467,3 +521,49 @@ const SAMPLE_NEWS = [
   { title: 'As outras aparecem logo abaixo, em lista' },
   { title: 'Sem internet, a TV mostra as últimas que conseguiu ler' },
 ];
+
+/** Importar lista M3U do fornecedor de IPTV: escolhe os canais e cria um app "TV ao vivo" para cada. */
+function IptvImport({ onClose, onImport }) {
+  const [text, setText] = useState('');
+  const [picked, setPicked] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const channels = useMemo(() => parseM3u(text), [text]);
+  const sel = picked || new Set(channels.map((_, i) => i));
+  const toggle = (i) => { const n = new Set(sel); if (n.has(i)) n.delete(i); else n.add(i); setPicked(n); };
+  const readFile = async (f) => { if (f) { setText(await f.text()); setPicked(null); } };
+  const submit = async () => {
+    setBusy(true);
+    try { await onImport(channels.filter((_, i) => sel.has(i))); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open onClose={onClose} width={860} icon="tv" title="Importar canais IPTV" subtitle="Lista M3U do seu fornecedor. Cada canal vira um item para playlists, grupos de telas e zonas."
+      footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" loading={busy} disabled={!sel.size} onClick={submit}>{sel.size ? `Importar ${sel.size} ${sel.size === 1 ? 'canal' : 'canais'}` : 'Importar'}</Button></>}>
+      <div className="vx-form">
+        <label className="vx-field">
+          <span className="vx-label">Arquivo .m3u</span>
+          <input type="file" accept=".m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" onChange={(e) => readFile(e.target.files?.[0])} />
+        </label>
+        <label className="vx-field">
+          <span className="vx-label">Ou cole o conteúdo da lista</span>
+          <textarea className="vx-input vx-textarea vx-mono" rows={5} value={text} onChange={(e) => { setText(e.target.value); setPicked(null); }} placeholder={'#EXTM3U\n#EXTINF:-1 tvg-logo="…" group-title="Notícias",Canal 1\nhttps://…/canal1.m3u8'} spellCheck={false} />
+        </label>
+        {channels.length > 0 && (
+          <div className="vx-field">
+            <span className="vx-label">{channels.length} canais na lista</span>
+            <div className="vx-iptv-list">
+              {channels.map((ch, i) => (
+                <label key={`${ch.url}${i}`} className="vx-iptv-row">
+                  <input type="checkbox" checked={sel.has(i)} onChange={() => toggle(i)} />
+                  <b>{ch.name}</b>
+                  {ch.group && <span className="vx-faint">{ch.group}</span>}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        {text && !channels.length && <p className="vx-help vx-help-warn"><Icon name="alert" />Não encontramos canais. A lista precisa ter linhas #EXTINF seguidas do link de cada canal.</p>}
+        <p className="vx-help">Exiba só canais que o seu contrato com o fornecedor permite em ponto comercial. Canais em .m3u8 tocam no player Android, Windows e web; .ts e outros formatos dependem do aparelho.</p>
+      </div>
+    </Modal>
+  );
+}
