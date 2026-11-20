@@ -317,9 +317,16 @@ service cloud.firestore {
         allow write: if hasRole(cid, 'editor');
       }
 
+      // Faturas: o dono e os administradores veem as suas; quem cria e dá baixa é a Vetta
+      // (console ou servidor, que também gera a cobrança no Asaas).
+      match /invoices/{iid} {
+        allow read: if hasRole(cid, 'admin') || isVetta();
+        allow write: if isVetta();
+      }
+
       // Pedidos da Loja: a empresa vê os seus; quem cria e confirma é o servidor (Asaas).
       match /storeOrders/{id} {
-        allow read: if hasRole(cid, 'admin');
+        allow read: if hasRole(cid, 'admin') || isVetta();
         allow write: if false;
       }
 
@@ -549,6 +556,27 @@ service cloud.firestore {
     // Console da Vetta: situação de todas as telas (consulta de grupo).
     match /{path=**}/screens/{sid} {
       allow list: if isVetta();
+    }
+
+    // Financeiro da Vetta: pagamentos, faturas e pedidos de todas as empresas (consultas de grupo).
+    match /{path=**}/payments/{pid} {
+      allow list: if isVetta();
+    }
+    match /{path=**}/invoices/{iid} {
+      allow list: if isVetta();
+    }
+    match /{path=**}/storeOrders/{oid} {
+      allow list: if isVetta();
+    }
+
+    // Histórico de MRR e de telas: só o servidor grava (Admin SDK); a Vetta lê.
+    match /mrrEvents/{eid} {
+      allow read: if isVetta();
+      allow write: if false;
+    }
+    match /licenseEvents/{eid} {
+      allow read: if isVetta();
+      allow write: if false;
     }
   }
 }

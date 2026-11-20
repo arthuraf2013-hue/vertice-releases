@@ -58,7 +58,7 @@ function Gate() {
       return (
         <Routes>
           <Route element={<Shell />}>
-            <Route path="vetta" element={<Console />} />
+            <Route path="vetta/:tab?" element={<Console />} />
             <Route path="*" element={<Navigate to="/vetta" replace />} />
           </Route>
         </Routes>
@@ -97,7 +97,7 @@ function Gate() {
         <Route path="academia" element={<Academy />} />
         <Route path="indique" element={<Referral />} />
         <Route path="loja" element={<Store />} />
-        {s.isVetta && <Route path="vetta" element={<Console />} />}
+        {s.isVetta && <Route path="vetta/:tab?" element={<Console />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

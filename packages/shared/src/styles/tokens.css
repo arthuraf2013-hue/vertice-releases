@@ -32,6 +32,11 @@
   --data-1: #1b3a86;
   --data-2: #a87a22;
   --data-3: #7d93b2;
+  /* Séries de gráfico (validadas para daltonismo; no claro, slots 3 e 4 sempre com rótulo). */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
   --shadow-card: 0 1px 2px rgba(20, 27, 38, 0.06);
   --shadow-pop: 0 12px 32px rgba(20, 27, 38, 0.14);
 
@@ -83,6 +88,10 @@
   --data-1: #8fa3c0;
   --data-2: #e8a93a;
   --data-3: #5d7395;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55);
   color-scheme: dark;

@@ -1,19 +1,27 @@
-// Console da Vetta Sistemas: todos os clientes, planos, vencimentos, pagamentos e bloqueio.
-// Aparece só para quem tem platformAdmins/{uid} (criado à mão no console do Firebase).
-import { useEffect, useMemo, useState } from 'react';
+// Console da Vetta Sistemas: o financeiro da plataforma (MRR, recebimentos, faturas, cobrança, clientes,
+// telas contratadas e movimentações) e a Loja. Aparece só para quem tem platformAdmins/{uid}.
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  PLANS, LICENSE_LABEL, LICENSE_STATUS, DEFAULT_TRIAL_DAYS, DEFAULT_GRACE_DAYS, licenseState, nextPaidUntil,
-  screenStatus, formatBytes, formatMoney as fmtMoney, ROLE_LABEL,
+  PLANS, LICENSE_LABEL, LICENSE_STATUS, DEFAULT_TRIAL_DAYS, DEFAULT_GRACE_DAYS, nextPaidUntil,
+  formatBytes, formatMoney as fmtMoney, ROLE_LABEL, DEFAULT_CANCEL_AFTER_DAYS, DEFAULT_INVOICE_DAYS_BEFORE, INVOICE_KIND_LABEL,
 } from '@vertice/shared';
 import { useSession } from '../session.jsx';
-import { useCol, useNow } from '../data/hooks.js';
+import { useCol } from '../data/hooks.js';
 import { api } from '../data/api.js';
 import {
-  PageHeader, Button, Card, Table, Input, Select, Loading, EmptyState, Modal, useToast, useConfirm, StatusBadge, MetricCard, Toggle, Segmented,
+  PageHeader, Button, Table, Input, Select, Loading, Modal, useToast, useConfirm, Toggle, Tabs, Segmented,
 } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
 import { StoreAdmin } from './Store.jsx';
-import { referralCode } from '@vertice/shared';
+import { useFinance, formatDoc } from './finance/useFinance.js';
+import { Overview } from './finance/Overview.jsx';
+import { Receipts } from './finance/Receipts.jsx';
+import { Invoices, InvoiceBadge, NewInvoiceModal } from './finance/Invoices.jsx';
+import { Collections } from './finance/Collections.jsx';
+import { Clients } from './finance/Clients.jsx';
+import { Licenses } from './finance/Licenses.jsx';
+import { Mrr } from './finance/Mrr.jsx';
 
 const DAY = 86400000;
 const money = (n) => (n ? `R$ ${fmtMoney(n)}` : '—');
@@ -22,100 +30,59 @@ const toInput = (ms) => (ms ? new Date(ms - new Date(ms).getTimezoneOffset() * 6
 /** Data do campo (AAAA-MM-DD) → fim daquele dia no horário local. */
 const fromInput = (v) => (v ? new Date(`${v}T23:59:00`).getTime() : null);
 const PLAN_OPTIONS = Object.entries(PLANS).map(([value, p]) => ({ value, label: `${p.name}, ${p.screens} telas` }));
-const licLabel = (lic) => (lic.blocked ? 'Bloqueado' : lic.overdue ? 'Vencido' : LICENSE_LABEL[lic.status]);
 
-const FILTERS = [
-  { value: 'all', label: 'Todos' },
-  { value: 'active', label: 'Ativos' },
-  { value: 'trial', label: 'Em teste' },
-  { value: 'attention', label: 'Atenção' },
-  { value: 'blocked', label: 'Bloqueados' },
+const TABS = [
+  { id: 'central', label: 'Central de controle', title: 'Central de controle', subtitle: 'Receita recorrente, retenção, caixa e o que precisa de ação hoje.' },
+  { id: 'recebimentos', label: 'Recebimentos', title: 'Recebimentos', subtitle: 'Tudo o que entrou, pelo Asaas, pela Loja ou registrado à mão.' },
+  { id: 'faturas', label: 'Faturas', title: 'Faturas', subtitle: 'Mensalidades geradas sozinhas antes do vencimento, faturas avulsas e pedidos da Loja.' },
+  { id: 'cobranca', label: 'Cobrança', title: 'Cobrança', subtitle: 'Contas vencidas, suspensas, perto do cancelamento e falhas no Asaas.' },
+  { id: 'clientes', label: 'Clientes', title: 'Clientes', subtitle: 'Planos, mensalidades, vencimentos e situação de cada empresa.' },
+  { id: 'licencas', label: 'Licenças', title: 'Licenças', subtitle: 'Telas contratadas, em uso e livres em cada cliente.' },
+  { id: 'mrr', label: 'MRR e movimentações', title: 'MRR e movimentações', subtitle: 'Como a receita recorrente mudou, dia a dia, e por quê.' },
+  { id: 'loja', label: 'Loja', title: 'Loja', subtitle: 'Itens à venda no painel dos clientes e os pedidos.' },
 ];
 
 export function Console() {
   const { settings } = useSession();
-  const now = useNow();
-  const companies = useCol('companies');
-  const [screens, setScreens] = useState(null);
-  useEffect(() => api.watchGroup('screens', setScreens, () => setScreens([])), []);
-  const [filter, setFilter] = useState('all');
-  const [q, setQ] = useState('');
+  const { tab: param } = useParams();
+  const nav = useNavigate();
+  const tab = TABS.find((t) => t.id === param) || TABS[0];
+  const d = useFinance();
   const [open, setOpen] = useState(null);
+  const [paying, setPaying] = useState(null);
+  const [invoicing, setInvoicing] = useState(null);
   const [creating, setCreating] = useState(false);
   const [editingSettings, setEditingSettings] = useState(false);
 
-  const rows = useMemo(() => {
-    const byCompany = new Map();
-    for (const s of screens || []) {
-      const cid = s.path?.split('/')[1];
-      if (!cid) continue;
-      const r = byCompany.get(cid) || { total: 0, online: 0 };
-      r.total += 1;
-      if (!['offline', 'warn', 'idle'].includes(screenStatus(s, now).key)) r.online += 1;
-      byCompany.set(cid, r);
-    }
-    return (companies || []).map((c) => {
-      const lic = licenseState(c, now);
-      const sc = byCompany.get(c.id) || { total: 0, online: 0 };
-      return { ...c, lic, screensTotal: sc.total, screensOnline: sc.online, due: lic.status === 'trial' ? c.trialEndsAt : c.paidUntil };
-    }).sort((a, b) => Number(b.lic.blocked) - Number(a.lic.blocked) || Number(b.lic.warn) - Number(a.lic.warn) || (a.name || '').localeCompare(b.name || ''));
-  }, [companies, screens, now]);
-
-  const shown = rows.filter((r) => {
-    if (q && !`${r.name} ${r.city || ''} ${r.ownerEmail || ''}`.toLowerCase().includes(q.toLowerCase())) return false;
-    if (filter === 'active') return r.lic.status === 'active' && !r.lic.blocked;
-    if (filter === 'trial') return r.lic.status === 'trial' && !r.lic.blocked;
-    if (filter === 'attention') return r.lic.warn && !r.lic.blocked;
-    if (filter === 'blocked') return r.lic.blocked;
-    return true;
-  });
-
-  const paying = rows.filter((r) => r.lic.status === 'active' && !r.lic.blocked);
-  const mrr = paying.reduce((a, r) => a + (Number(r.monthlyPrice) || 0), 0);
-  const totalScreens = rows.reduce((a, r) => a + r.screensTotal, 0);
-  const onlineScreens = rows.reduce((a, r) => a + r.screensOnline, 0);
-
-  if (!companies) return <Loading />;
-  // Indique e ganhe: código de cada empresa → nome (para mostrar quem indicou quem).
-  const byCode = new Map(companies.map((c) => [referralCode(c.id), c.name]));
+  const openRow = open && d?.byId.get(open);
+  const payRow = paying && d?.byId.get(paying);
   return (
     <div className="vx-page">
-      <PageHeader overline="VETTA SISTEMAS" title="Clientes" subtitle="Planos, vencimentos e situação de todas as empresas que usam o Vértice."
-        actions={<>
-          <Button icon="edit" onClick={() => setEditingSettings(true)}>Configurações</Button>
-          <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>Novo cliente</Button>
-        </>} />
-      <div className="vx-grid-4">
-        <MetricCard icon="building" label="Clientes pagantes" value={paying.length} dot="online" note={`${rows.filter((r) => r.lic.status === 'trial' && !r.lic.blocked).length} em teste grátis`} />
-        <MetricCard icon="wallet" label="Receita mensal" value={money(mrr)} dot="online" note="Soma das mensalidades ativas" />
-        <MetricCard icon="alert" label="Precisam de atenção" value={rows.filter((r) => r.lic.warn).length} dot={rows.some((r) => r.lic.blocked) ? 'offline' : 'warn'} note={`${rows.filter((r) => r.lic.blocked).length} bloqueados`} />
-        <MetricCard icon="screen" label="Telas" value={onlineScreens} total={totalScreens} bar={totalScreens ? (onlineScreens / totalScreens) * 100 : 0} dot="online" note="online agora" />
-      </div>
-      <Card pad={false}>
-        <div className="vx-console-filters" style={{ padding: 'var(--space-4) var(--space-5)' }}>
-          <input className="vx-input" placeholder="Buscar cliente, cidade ou e-mail" aria-label="Buscar cliente" value={q} onChange={(e) => setQ(e.target.value)} />
-          <Segmented options={FILTERS} value={filter} onChange={setFilter} />
-        </div>
-        <Table rows={shown} onRowClick={(r) => setOpen(r.id)} empty={<EmptyState icon="building" title={rows.length ? 'Nenhum cliente neste filtro' : 'Nenhum cliente ainda'}>Use “Novo cliente” para cadastrar uma empresa e convidar o dono.</EmptyState>}
-          columns={[
-            { key: 'name', label: 'Cliente', render: (r) => <span className="vx-client-name"><b>{r.name}</b><small>{[r.city, r.ownerEmail, r.referredBy ? `indicado por ${byCode.get(r.referredBy) || r.referredBy}${r.referralRewarded ? ' (premiado)' : ''}` : null].filter(Boolean).join(' · ') || '—'}</small></span> },
-            { key: 'plan', label: 'Plano', render: (r) => PLANS[r.plan]?.name || r.plan || '—' },
-            { key: 'lic', label: 'Situação', render: (r) => <StatusBadge status={r.lic.tone}>{licLabel(r.lic)}</StatusBadge> },
-            { key: 'due', label: 'Vence', render: (r) => <span title={r.lic.title}>{day(r.due)}{r.lic.overdue && !r.lic.blocked ? ' (vencido)' : ''}</span> },
-            { key: 'screens', label: 'Telas', render: (r) => `${r.screensOnline} on / ${r.screensTotal} de ${r.screenLimit || '—'}` },
-            { key: 'storage', label: 'Mídias', render: (r) => formatBytes(r.storageUsedBytes || 0) },
-            { key: 'price', label: 'Mensalidade', align: 'right', render: (r) => money(r.monthlyPrice) },
-          ]} />
-      </Card>
-      <StoreAdmin />
-      {open && <ClientModal company={rows.find((r) => r.id === open)} onClose={() => setOpen(null)} settings={settings} />}
+      <PageHeader overline="VETTA SISTEMAS · FINANCEIRO" title={tab.title} subtitle={tab.subtitle}
+        actions={<Button icon="edit" onClick={() => setEditingSettings(true)}>Configurações</Button>} />
+      <Tabs tabs={TABS.map((t) => ({ id: t.id, label: t.label }))} value={tab.id} onChange={(id) => nav(`/vetta/${id}`)} />
+      {!d ? <Loading /> : (
+        <>
+          {tab.id === 'central' && <Overview d={d} />}
+          {tab.id === 'recebimentos' && <Receipts d={d} />}
+          {tab.id === 'faturas' && <Invoices d={d} />}
+          {tab.id === 'cobranca' && <Collections d={d} onOpenClient={setOpen} />}
+          {tab.id === 'clientes' && <Clients d={d} onOpenClient={setOpen} onPay={setPaying} onInvoice={setInvoicing} onNew={() => setCreating(true)} />}
+          {tab.id === 'licencas' && <Licenses d={d} onOpenClient={setOpen} />}
+          {tab.id === 'mrr' && <Mrr d={d} />}
+        </>
+      )}
+      {tab.id === 'loja' && <StoreAdmin />}
+      {openRow && <ClientModal company={openRow} d={d} onClose={() => setOpen(null)} settings={settings} onInvoice={() => setInvoicing(openRow.id)} />}
+      {payRow && <PaymentModal company={payRow} onClose={() => setPaying(null)} onDone={() => setPaying(null)} />}
+      {invoicing && d && <NewInvoiceModal d={d} cid={invoicing} onClose={() => setInvoicing(null)} />}
       {creating && <NewClientModal onClose={() => setCreating(false)} settings={settings} onCreated={(id) => { setCreating(false); setOpen(id); }} />}
       {editingSettings && <SettingsModal settings={settings} onClose={() => setEditingSettings(false)} />}
     </div>
   );
 }
 
-function ClientModal({ company: c, onClose, settings }) {
+function ClientModal({ company: c, d, onClose, settings, onInvoice }) {
   const toast = useToast();
   const [confirm, confirmDialog] = useConfirm();
   const base = `companies/${c.id}`;
@@ -123,6 +90,7 @@ function ClientModal({ company: c, onClose, settings }) {
   const payments = useCol(`${base}/payments`, { orderBy: ['paidAt', 'desc'], limit: 24 });
   const [f, setF] = useState(() => ({
     name: c.name || '', city: c.city || '', phone: c.phone || '', ownerEmail: c.ownerEmail || '', notes: c.notes || '',
+    legalName: c.legalName || '', cpfCnpj: formatDoc(c.cpfCnpj || c.cnpj || ''), autoInvoice: c.autoInvoice !== false,
     plan: c.plan || 'start', screenLimit: String(c.screenLimit || PLANS.start.screens), storageGB: String(Math.round((c.storageQuotaMB || PLANS.start.storageMB) / 1024)),
     monthlyPrice: c.monthlyPrice ? String(c.monthlyPrice).replace('.', ',') : '', status: c.status || 'active',
     trialEndsAt: toInput(c.trialEndsAt), paidUntil: toInput(c.paidUntil), graceDays: String(c.graceDays ?? settings.graceDays ?? DEFAULT_GRACE_DAYS),
@@ -137,6 +105,7 @@ function ClientModal({ company: c, onClose, settings }) {
     try {
       await api.update(base, {
         name: f.name.trim(), city: f.city.trim(), phone: f.phone.trim(), ownerEmail: f.ownerEmail.trim().toLowerCase(), notes: f.notes.trim(),
+        legalName: f.legalName.trim(), cpfCnpj: f.cpfCnpj.replace(/\D/g, ''), autoInvoice: f.autoInvoice,
         plan: f.plan, screenLimit: Number(f.screenLimit) || 1, storageQuotaMB: (Number(f.storageGB) || 1) * 1024,
         monthlyPrice: price(f.monthlyPrice), status: f.status, graceDays: Number(f.graceDays) || 0,
         trialEndsAt: f.trialEndsAt ? new Date(fromInput(f.trialEndsAt)) : api.DELETE,
@@ -177,6 +146,10 @@ function ClientModal({ company: c, onClose, settings }) {
           <Input label="Cidade" value={f.city} onChange={(e) => set({ city: e.target.value })} />
         </div>
         <div className="vx-form-row">
+          <Input label="Razão social (para a cobrança)" value={f.legalName} onChange={(e) => set({ legalName: e.target.value })} placeholder={f.name} />
+          <Input label="CPF ou CNPJ" value={f.cpfCnpj} onChange={(e) => set({ cpfCnpj: e.target.value })} help="Obrigatório para cobrar pelo Asaas." />
+        </div>
+        <div className="vx-form-row">
           <Input label="E-mail do dono" value={f.ownerEmail} onChange={(e) => set({ ownerEmail: e.target.value })} help="Recebe os avisos de vencimento." />
           <Input label="Telefone" value={f.phone} onChange={(e) => set({ phone: e.target.value })} />
         </div>
@@ -193,9 +166,26 @@ function ClientModal({ company: c, onClose, settings }) {
             : <Input label="Pago até" type="date" value={f.paidUntil} onChange={(e) => set({ paidUntil: e.target.value })} help="Vazio = sem vencimento (cortesia)." />}
           <Input label="Tolerância (dias)" type="number" min={0} max={60} value={f.graceDays} onChange={(e) => set({ graceDays: e.target.value })} help="Depois do vencimento, antes de bloquear." />
         </div>
+        <Toggle label="Gerar a fatura da mensalidade sozinho" help={`${settings.invoiceDaysBefore ?? DEFAULT_INVOICE_DAYS_BEFORE} dias antes do vencimento, com a cobrança no Asaas. Desligue para quem paga de outro jeito.`} checked={f.autoInvoice} onChange={(v) => set({ autoInvoice: v })} />
         <Field2 label="Anotações internas">
           <textarea className="vx-input" rows={2} value={f.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="Ex.: cobrança dia 10 por Pix, contato com o gerente Marcos." />
         </Field2>
+
+        <div>
+          <div className="vx-card-head" style={{ marginBottom: 8 }}>
+            <h3 className="vx-card-title">Faturas</h3>
+            <Button size="sm" icon="plus" onClick={onInvoice}>Nova fatura</Button>
+          </div>
+          {c.invoices?.length ? (
+            <Table rows={c.invoices} defaultSort={{ key: 'due', dir: 'desc' }} limit={12} columns={[
+              { key: 'due', label: 'Vencimento', sort: (i) => i.dueAt, render: (i) => day(i.dueAt) },
+              { key: 'title', label: 'Fatura', render: (i) => i.title || INVOICE_KIND_LABEL[i.kind] },
+              { key: 'state', label: 'Situação', render: (i) => <InvoiceBadge inv={i} /> },
+              { key: 'amount', label: 'Valor', align: 'right', render: (i) => money(i.amount) },
+              { key: 'link', label: '', align: 'right', render: (i) => (i.invoiceUrl ? <a className="vx-row-menu-btn" href={i.invoiceUrl} target="_blank" rel="noreferrer" aria-label="Abrir a fatura no Asaas"><Icon name="link" /></a> : null) },
+            ]} />
+          ) : <p className="vx-help">Nenhuma fatura ainda.{c.mrr ? ` A próxima mensalidade é gerada ${settings.invoiceDaysBefore ?? DEFAULT_INVOICE_DAYS_BEFORE} dias antes de ${day(c.paidUntil)}.` : ''}</p>}
+        </div>
 
         <div>
           <h3 className="vx-card-title" style={{ marginBottom: 8 }}>Pagamentos</h3>
@@ -204,6 +194,7 @@ function ClientModal({ company: c, onClose, settings }) {
               { key: 'paidAt', label: 'Pago em', render: (p) => day(p.paidAt) },
               { key: 'amount', label: 'Valor', render: (p) => money(p.amount) },
               { key: 'method', label: 'Forma' },
+              { key: 'channel', label: 'Canal', render: (p) => p.channel || p.by || 'Manual' },
               { key: 'months', label: 'Meses' },
               { key: 'paidUntil', label: 'Cobre até', render: (p) => day(p.paidUntil) },
             ]} />
@@ -324,6 +315,8 @@ function SettingsModal({ settings, onClose }) {
   const [f, setF] = useState({
     signupOpen: settings.signupOpen ?? true, trialDays: String(settings.trialDays || DEFAULT_TRIAL_DAYS), graceDays: String(settings.graceDays ?? DEFAULT_GRACE_DAYS),
     supportWhatsApp: settings.supportWhatsApp || '', supportEmail: settings.supportEmail || '',
+    autoInvoice: settings.autoInvoice !== false, invoiceDaysBefore: String(settings.invoiceDaysBefore ?? DEFAULT_INVOICE_DAYS_BEFORE),
+    cancelAfterDays: String(settings.cancelAfterDays ?? DEFAULT_CANCEL_AFTER_DAYS),
   });
   const [busy, setBusy] = useState(false);
   const save = async () => {
@@ -332,6 +325,8 @@ function SettingsModal({ settings, onClose }) {
       await api.set('platform/settings', {
         signupOpen: f.signupOpen, trialDays: Math.max(1, Math.min(60, Number(f.trialDays) || DEFAULT_TRIAL_DAYS)), graceDays: Number(f.graceDays) || 0,
         supportWhatsApp: f.supportWhatsApp.replace(/\D/g, ''), supportEmail: f.supportEmail.trim(),
+        autoInvoice: f.autoInvoice, invoiceDaysBefore: Math.max(1, Math.min(30, Number(f.invoiceDaysBefore) || DEFAULT_INVOICE_DAYS_BEFORE)),
+        cancelAfterDays: Math.max(0, Math.min(365, Number(f.cancelAfterDays) || 0)),
       }, true);
       toast('Configurações salvas.');
       onClose();
@@ -345,6 +340,11 @@ function SettingsModal({ settings, onClose }) {
         <div className="vx-form-row">
           <Input label="Dias de teste grátis" type="number" min={1} max={60} value={f.trialDays} onChange={(e) => setF({ ...f, trialDays: e.target.value })} />
           <Input label="Tolerância padrão (dias)" type="number" min={0} max={60} value={f.graceDays} onChange={(e) => setF({ ...f, graceDays: e.target.value })} help="Para clientes novos." />
+        </div>
+        <Toggle label="Gerar as faturas da mensalidade sozinho" help="O servidor cria a fatura e a cobrança no Asaas antes de cada vencimento." checked={f.autoInvoice} onChange={(v) => setF({ ...f, autoInvoice: v })} />
+        <div className="vx-form-row">
+          <Input label="Gerar a fatura (dias antes)" type="number" min={1} max={30} value={f.invoiceDaysBefore} onChange={(e) => setF({ ...f, invoiceDaysBefore: e.target.value })} />
+          <Input label="Cancelar sem pagamento após (dias)" type="number" min={0} max={365} value={f.cancelAfterDays} onChange={(e) => setF({ ...f, cancelAfterDays: e.target.value })} help="0 = nunca cancelar sozinho." />
         </div>
         <div className="vx-form-row">
           <Input label="WhatsApp comercial" value={f.supportWhatsApp} onChange={(e) => setF({ ...f, supportWhatsApp: e.target.value })} placeholder="5581999990000" help="Com DDI. Aparece no painel dos clientes." />

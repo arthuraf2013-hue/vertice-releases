@@ -22,7 +22,7 @@ const NAV = [
   ['AJUDA', [['/academia', 'school', 'Academia']]],
 ];
 
-const VETTA_NAV = ['VETTA SISTEMAS', [['/vetta', 'key', 'Clientes']]];
+const VETTA_NAV = ['VETTA SISTEMAS', [['/vetta', 'wallet', 'Financeiro']]];
 
 export function Shell() {
   const loc = useLocation();

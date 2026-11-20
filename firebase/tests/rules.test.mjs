@@ -663,3 +663,30 @@ test('indicação: cadastro guarda o código de quem indicou, sem passar do tama
   // O próprio cliente não se dá o prêmio.
   await assertFails(updateDoc(doc(as('u9'), 'companies/c9'), { referralRewarded: true }));
 });
+
+test('financeiro: faturas o admin da empresa lê e só a Vetta grava; históricos e consultas de grupo só a Vetta', async () => {
+  await seedCompany();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const f = ctx.firestore();
+    await setDoc(doc(f, 'platformAdmins/vetta'), { name: 'Arthur' });
+    await setDoc(doc(f, `companies/${CID}/invoices/i1`), { status: 'open', amount: 99.9 });
+    await setDoc(doc(f, 'mrrEvents/e1'), { cid: CID, type: 'new', delta: 99.9 });
+    await setDoc(doc(f, 'licenseEvents/l1'), { cid: CID, type: 'activated' });
+  });
+  const v = as('vetta');
+  await assertSucceeds(getDoc(doc(as('owner'), `companies/${CID}/invoices/i1`)));
+  await assertFails(getDoc(doc(as('editor'), `companies/${CID}/invoices/i1`)));
+  await assertFails(updateDoc(doc(as('owner'), `companies/${CID}/invoices/i1`), { status: 'paid' }));
+  await assertSucceeds(updateDoc(doc(v, `companies/${CID}/invoices/i1`), { status: 'paid' }));
+  await assertSucceeds(setDoc(doc(v, `companies/${CID}/invoices/i2`), { status: 'open', amount: 10 }));
+  await assertSucceeds(getDocs(collectionGroup(v, 'invoices')));
+  await assertSucceeds(getDocs(collectionGroup(v, 'payments')));
+  await assertSucceeds(getDocs(collectionGroup(v, 'storeOrders')));
+  await assertFails(getDocs(collectionGroup(as('owner'), 'invoices')));
+  await assertSucceeds(getDoc(doc(v, 'mrrEvents/e1')));
+  await assertSucceeds(getDocs(collection(v, 'licenseEvents')));
+  await assertFails(getDoc(doc(as('owner'), 'mrrEvents/e1')));
+  await assertFails(setDoc(doc(v, 'mrrEvents/e2'), { type: 'new' }));
+  // O cliente não marca o próprio cancelamento nem adia a cobrança.
+  await assertFails(updateDoc(doc(as('owner'), `companies/${CID}`), { cancelHoldUntil: new Date() }));
+});

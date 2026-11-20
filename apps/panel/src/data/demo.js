@@ -2,7 +2,7 @@
 // Usado quando não há configuração do Firebase (ou com `vite --mode demo`).
 // Serve para prévias, apresentações comerciais e para desenvolver sem internet.
 import {
-  PAIRING_KIND, ORDER_BOARD_DEFAULTS, screenCode, normalizePairingCode, isValidPairingCode, buildManifest,
+  PAIRING_KIND, ORDER_BOARD_DEFAULTS, screenCode, normalizePairingCode, isValidPairingCode, buildManifest, nextPaidUntil,
 } from '@vertice/shared';
 import { seedDemo } from './seed.js';
 
@@ -266,6 +266,34 @@ export function createDemoBackend() {
       const id = `ord${Date.now()}`;
       write(`companies/${cid}/storeOrders/${id}`, { itemId: input.itemId, item: { name: input.itemName || 'Item da loja' }, value: input.value || 0, status: 'pending', invoiceUrl: null, createdAt: Date.now() });
       return { orderId: id, invoiceUrl: null, demo: true };
+    },
+    /** Financeiro na demonstração: simula o servidor (cobrança no Asaas, cancelar e dar baixa). */
+    async financeAction(cid, iid, action, body = {}) {
+      await new Promise((r) => setTimeout(r, 500));
+      const path = `companies/${cid}/invoices/${iid}`;
+      const inv = readDoc(path);
+      if (!inv) throw new Error('Fatura não encontrada.');
+      if (action === 'cobrar') {
+        const c = readDoc(`companies/${cid}`) || {};
+        if (!c.cpfCnpj && !c.cnpj) {
+          write(path, { syncError: { message: 'Cadastre o CPF ou CNPJ do cliente para cobrar pelo Asaas.', at: Date.now(), attempts: (inv.syncError?.attempts || 0) + 1 } }, { update: true });
+          throw new Error('Cadastre o CPF ou CNPJ do cliente para cobrar pelo Asaas.');
+        }
+        write(path, { asaasPaymentId: `pay_${iid}`, invoiceUrl: 'https://www.asaas.com/i/demonstracao', syncError: DELETE, syncedAt: Date.now() }, { update: true });
+        return { invoiceUrl: 'https://www.asaas.com/i/demonstracao' };
+      }
+      if (action === 'cancelar') { write(path, { status: 'canceled', canceledAt: Date.now(), cancelReason: 'console' }, { update: true }); return { ok: true }; }
+      if (action === 'baixa') {
+        const c = readDoc(`companies/${cid}`) || {};
+        const paidAt = body.paidAt || Date.now();
+        const months = Number(inv.months) || 0;
+        const paidUntil = months ? nextPaidUntil(c, months, paidAt) : null;
+        write(path, { status: 'paid', paidAt, method: body.method || 'Outro', channel: 'Manual', syncError: DELETE }, { update: true });
+        write(`companies/${cid}/payments/inv-${iid}`, { amount: inv.amount, months, method: body.method || 'Outro', channel: 'Manual', title: inv.title, kind: inv.kind, invoiceId: iid, paidAt, paidUntil, by: 'Vetta Sistemas' });
+        if (paidUntil) write(`companies/${cid}`, { paidUntil, status: 'active' }, { update: true });
+        return { ok: true };
+      }
+      throw new Error('Ação desconhecida.');
     },
     /** Lê, calcula e grava de uma vez (no Firebase, numa transação). `fn(dados)` devolve o que mudar. */
     async transact(path, fn) {

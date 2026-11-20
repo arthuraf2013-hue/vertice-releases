@@ -7,6 +7,8 @@
 //     e correção do contador de telas de cada empresa
 //   - todo dia às 8h: resumo para a Vetta (bloqueados, vencidos, testes acabando)
 //   - Loja: cobrança pelo Asaas e confirmação do pagamento (store.js, porta 8788)
+//   - Financeiro: faturas da mensalidade e cobrança no Asaas, baixa, cancelamento após N dias sem
+//     pagar, cancelamentos agendados e o histórico de MRR e de telas (finance.js)
 //
 // Usa uma conta de serviço do Firebase (Admin SDK): ela ignora as regras, então este processo
 // fica só no servidor da Vetta. Configuração em .env ao lado deste arquivo (veja .env.example).
@@ -16,7 +18,8 @@ import { fileURLToPath } from 'node:url';
 import { initializeApp, applicationDefault, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { startStore } from './store.js';
+import { startStore, asaasClient } from './store.js';
+import { startFinance } from './finance.js';
 import nodemailer from 'nodemailer';
 import { inQuiet, screenTransitions, offlineMessage, billingNotices } from './rules.js';
 
@@ -196,12 +199,26 @@ async function runDigest() {
   log('resumo enviado');
 }
 
+/* ---------- Financeiro ---------- */
+
+const PLAN_NAMES = { start: { name: 'Start' }, pro: { name: 'Pro' }, rede: { name: 'Rede' } };
+const asaas = asaasClient();
+const finance = startFinance({
+  db, auth: getAuth(), FieldValue, Timestamp, log, asaas, tz: TZ, plans: PLAN_NAMES,
+  notify: async (cid, company, { subject, text }) => {
+    const to = await ownerEmails(cid, company);
+    const result = await sendEmail(to, subject, text).catch((e) => `falhou: ${e.message}`);
+    await db.collection(`companies/${cid}/alertLog`).add({ at: FieldValue.serverTimestamp(), kind: 'cobranca', text: subject, to, result: { email: result } });
+  },
+});
+
 /* ---------- Agenda ---------- */
 
 const jobs = [
   { name: 'testes', every: 60_000, run: runAlertTests },
   { name: 'telas', every: 2 * 60_000, run: runOffline },
   { name: 'cobrança', every: 60 * 60_000, run: runBilling },
+  { name: 'financeiro', every: 60 * 60_000, run: () => finance.runInvoices() },
 ];
 
 async function safe(name, fn) {
@@ -214,7 +231,9 @@ if (ONCE) {
   process.exit(0);
 } else {
   // Loja (cobrança pelo Asaas): sobe junto, só ouve no próprio servidor (o Caddy repassa /v1/loja e /v1/asaas).
-  if (process.env.STORE_DISABLED !== '1') startStore({ db, auth: getAuth(), FieldValue, Timestamp, log });
+  if (process.env.STORE_DISABLED !== '1') startStore({ db, auth: getAuth(), FieldValue, Timestamp, log, asaas, finance });
+  // Histórico de MRR e de telas: ouve o Firestore e grava cada mudança.
+  safe('financeiro-escuta', () => finance.watch());
   log(`Serviço de alertas no ar. Fuso ${TZ}. E-mail: ${mailer ? 'ligado' : 'desligado'}. WhatsApp: ${process.env.WHATSAPP_PROVIDER || 'desligado'}.`);
   for (const j of jobs) {
     safe(j.name, j.run);

@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node worker.js",
     "once": "node worker.js --once",
-    "test": "node --test rules.test.js store.test.js"
+    "test": "node --test rules.test.js store.test.js finance.test.js"
   },
   "dependencies": {
     "firebase-admin": "^14.5.1",

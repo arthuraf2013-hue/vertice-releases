@@ -320,6 +320,18 @@ export function createFirebaseBackend(config, { emulator = false, mediaServerUrl
       return res.json();
     },
 
+    /** Financeiro da Vetta: gerar a cobrança no Asaas, cancelar ou dar baixa numa fatura (servidor). */
+    async financeAction(companyId, invoiceId, action, body = {}) {
+      if (!mediaBase) throw new Error('O financeiro precisa do servidor da Vetta configurado.');
+      const res = await fetch(`${mediaBase}/v1/financeiro/${companyId}/faturas/${invoiceId}/${action}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${await idToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await mediaError(res));
+      return res.json();
+    },
+
     /** Textos de peça com IA (servidor de mídias; a chave fica lá). */
     async aiText(companyId, input) {
       if (!mediaBase) throw new Error('A IA precisa do servidor de mídias configurado.');

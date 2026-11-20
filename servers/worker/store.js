@@ -95,19 +95,26 @@ export const dueDate = (days = 3, now = Date.now()) => new Date(now + days * DAY
 
 /* ---------- Servidor ---------- */
 
-export function startStore({ db, auth, FieldValue, Timestamp, log = console.log, env = process.env }) {
+/** Cliente da API do Asaas (chave e ambiente do .env). */
+export function asaasClient(env = process.env) {
   const KEY = env.ASAAS_API_KEY || '';
   const BASE = env.ASAAS_URL || ASAAS_URL[env.ASAAS_ENV === 'production' ? 'production' : 'sandbox'];
-  const HOOK = env.ASAAS_WEBHOOK_TOKEN || '';
-  const PORT = Number(env.STORE_PORT || 8788);
-  const ORIGINS = (env.ALLOWED_ORIGINS || '*').split(',').map((s) => s.trim()).filter(Boolean);
-
-  const asaas = async (method, path, body) => {
+  return async (method, path, body) => {
     const r = await fetch(`${BASE}${path}`, { method, headers: { access_token: KEY, 'Content-Type': 'application/json', 'User-Agent': 'Vertice' }, body: body ? JSON.stringify(body) : undefined });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j?.errors?.[0]?.description || `Asaas respondeu ${r.status}`);
     return j;
   };
+}
+
+/** billingType do Asaas → texto do meio de pagamento. */
+const METHOD = { PIX: 'Pix', BOLETO: 'Boleto', CREDIT_CARD: 'Cartão de crédito', DEBIT_CARD: 'Cartão de débito' };
+
+export function startStore({ db, auth, FieldValue, Timestamp, log = console.log, env = process.env, asaas = asaasClient(env), finance = null }) {
+  const KEY = env.ASAAS_API_KEY || '';
+  const HOOK = env.ASAAS_WEBHOOK_TOKEN || '';
+  const PORT = Number(env.STORE_PORT || 8788);
+  const ORIGINS = (env.ALLOWED_ORIGINS || '*').split(',').map((s) => s.trim()).filter(Boolean);
 
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -193,8 +200,14 @@ export function startStore({ db, auth, FieldValue, Timestamp, log = console.log,
     if (!ok) return send(res, 401, { error: 'token' });
     let body;
     try { body = await readJson(req); } catch { return send(res, 400, { error: 'json' }); }
+    // Fatura do financeiro ("empresa/inv/fatura"): quem trata é finance.js.
+    const ref = String(body.payment?.externalReference || '').split('/');
+    if (ref.length === 3 && ref[1] === 'inv') {
+      if (finance) await finance.onInvoiceEvent(body);
+      return send(res, 200, { ok: true });
+    }
     const status = orderStatusFor(body.event);
-    const [cid, oid] = String(body.payment?.externalReference || '').split('/');
+    const [cid, oid] = ref;
     if (!status || !ID.test(cid || '') || !ID.test(oid || '')) return send(res, 200, { ignored: true });
     const oRef = db.doc(`companies/${cid}/storeOrders/${oid}`);
     const cRef = db.doc(`companies/${cid}`);
@@ -209,6 +222,13 @@ export function startStore({ db, auth, FieldValue, Timestamp, log = console.log,
       const patch = { ...eff, ...(eff.paidUntil ? { paidUntil: Timestamp.fromMillis(eff.paidUntil) } : {}) };
       if (Object.keys(patch).length) tx.update(cRef, patch);
       tx.update(oRef, { status: 'paid', paidAt: FieldValue.serverTimestamp(), billingType: body.payment?.billingType || null });
+      // Recebimento (aparece no financeiro da Vetta e no histórico do cliente).
+      const it = o.data().item || {};
+      tx.set(db.doc(`companies/${cid}/payments/loja-${oid}`), {
+        amount: Number(o.data().value) || 0, months: it.kind === 'months' ? Number(it.months) || 1 : 0, method: METHOD[body.payment?.billingType] || 'Outro',
+        channel: 'Asaas', kind: 'loja', title: it.name || 'Loja', orderId: oid, by: 'Loja',
+        paidAt: FieldValue.serverTimestamp(), paidUntil: eff.paidUntil ? Timestamp.fromMillis(eff.paidUntil) : (company.paidUntil || null), createdAt: FieldValue.serverTimestamp(),
+      });
       applied = o.data().item?.kind === 'months';
     });
     if (applied && company) await rewardReferral(cid, company).catch((e) => log('indicacao-erro', cid, e.message));
@@ -222,7 +242,7 @@ export function startStore({ db, auth, FieldValue, Timestamp, log = console.log,
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
       res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     }
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     try {
@@ -231,6 +251,7 @@ export function startStore({ db, auth, FieldValue, Timestamp, log = console.log,
       if (m && req.method === 'POST') return await checkout(req, res, m[1]);
       if (pathname === '/v1/asaas/webhook' && req.method === 'POST') return await webhook(req, res);
       if (pathname === '/v1/loja/saude') return send(res, 200, { ok: true, asaas: !!KEY, env: env.ASAAS_ENV || 'sandbox' });
+      if (finance && pathname.startsWith('/v1/financeiro/') && await finance.route(req, res, pathname, { send, readJson })) return undefined;
       m = null;
       send(res, 404, { error: 'Não encontrado' });
     } catch (e) {

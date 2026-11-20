@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useId, useRef, useState, createContext, useContext, useCallback } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, createContext, useContext, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { screenStatus, STATUS_LABEL, formatTime, timeAgo, APP_KINDS } from '@vertice/shared';
 import { Icon } from './Icon.jsx';
@@ -325,16 +325,47 @@ export function Segmented({ options, value, onChange, label }) {
 }
 
 /* ---------- Tabela ---------- */
-export function Table({ columns, rows, rowKey = (r) => r.id, onRowClick, empty }) {
+/**
+ * Colunas com `sort: (linha) => valor` ganham ordenação no cabeçalho (clique alterna crescente/decrescente).
+ * `defaultSort: { key, dir }` define a ordem inicial; `limit` mostra só as primeiras N linhas.
+ */
+export function Table({ columns, rows, rowKey = (r) => r.id, onRowClick, empty, defaultSort, limit }) {
+  const [sort, setSort] = useState(defaultSort || null);
+  const sorted = useMemo(() => {
+    const col = sort && columns.find((c) => c.key === sort.key && c.sort);
+    if (!col || !rows) return rows || [];
+    const val = (r) => col.sort(r);
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const x = val(a); const y = val(b);
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;
+      if (y == null) return -1;
+      return (typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : x - y) * dir;
+    });
+  }, [rows, columns, sort]);
   if (!rows?.length) return empty || null;
+  const shown = limit ? sorted.slice(0, limit) : sorted;
+  const toggle = (c) => setSort((s) => (s?.key === c.key ? { key: c.key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: c.key, dir: c.sortFirst || 'asc' }));
   return (
     <div className="vx-table-wrap">
       <table className="vx-table">
         <thead>
-          <tr>{columns.map((c) => <th key={c.key} style={{ width: c.width, textAlign: c.align }}>{c.label}</th>)}</tr>
+          <tr>{columns.map((c) => {
+            const on = sort?.key === c.key;
+            return (
+              <th key={c.key} style={{ width: c.width, textAlign: c.align }} aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+                {c.sort ? (
+                  <button type="button" className={`vx-th-sort ${on ? 'is-on' : ''}`} onClick={() => toggle(c)}>
+                    {c.label}<Icon name={on && sort.dir === 'asc' ? 'arrowUp' : 'arrowDown'} />
+                  </button>
+                ) : c.label}
+              </th>
+            );
+          })}</tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {shown.map((r) => (
             <tr key={rowKey(r)} onClick={onRowClick ? () => onRowClick(r) : undefined} className={onRowClick ? 'is-clickable' : ''}>
               {columns.map((c) => <td key={c.key} style={{ textAlign: c.align }}>{c.render ? c.render(r) : r[c.key]}</td>)}
             </tr>

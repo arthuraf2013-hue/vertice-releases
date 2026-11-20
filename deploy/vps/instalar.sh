@@ -64,7 +64,7 @@ install -d -m 755 /opt/vertice /opt/vertice/midias /opt/vertice/alertas
 
 passo "Código"
 install -m 644 "$SRC/servers/media/server.js" "$SRC/servers/media/package.json" /opt/vertice/midias/
-install -m 644 "$SRC"/servers/worker/{worker.js,rules.js,store.js,migrar-midias.mjs,package.json} /opt/vertice/alertas/
+install -m 644 "$SRC"/servers/worker/{worker.js,rules.js,store.js,finance.js,migrar-midias.mjs,package.json} /opt/vertice/alertas/
 (cd /opt/vertice/midias && npm install --omit=dev --no-audit --no-fund --loglevel=error)
 (cd /opt/vertice/alertas && npm install --omit=dev --no-audit --no-fund --loglevel=error)
 

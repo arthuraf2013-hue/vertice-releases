@@ -1,5 +1,6 @@
 // Dados de exemplo do modo demonstração: "Padaria Boa Massa", duas unidades em Recife.
 import { ORDER_BOARD_DEFAULTS } from '@vertice/shared';
+import { seedFinance } from './seedFinance.js';
 
 /** Arte de oferta em SVG (substitui imagens reais na demonstração). */
 export function offerArt({ over, title, price, unit = '', tone = 'navy', w = 1920, h = 1080 }) {
@@ -47,19 +48,9 @@ export function seedDemo({ set }) {
   // Console da Vetta na demonstração: abra com ?vetta na URL.
   if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('vetta')) {
     set('platformAdmins/demo-owner', { name: 'Vetta Sistemas' });
-    const clients = [
-      ['c-mercado', 'Mercado Bom Preço', 'Olinda', { plan: 'rede', screenLimit: 100, storageQuotaMB: 51200, status: 'active', paidUntil: now + 21 * DAY, monthlyPrice: 1490, screenCount: 32, storageUsedBytes: 18.2 * 1024 ** 3 }, 32, 30],
-      ['c-farma', 'Farmácia Vida', 'Recife', { plan: 'start', screenLimit: 3, storageQuotaMB: 1024, status: 'trial', trialEndsAt: now + 2 * DAY, screenCount: 2, storageUsedBytes: 0.3 * 1024 ** 3, source: 'cadastro' }, 2, 2],
-      ['c-acai', 'Açaí da Praça', 'Jaboatão', { plan: 'start', screenLimit: 3, storageQuotaMB: 1024, status: 'active', paidUntil: now - 3 * DAY, monthlyPrice: 89.9, screenCount: 3, storageUsedBytes: 0.9 * 1024 ** 3 }, 3, 1],
-      ['c-otica', 'Ótica Visão', 'Paulista', { plan: 'pro', screenLimit: 15, storageQuotaMB: 10240, status: 'suspended', paidUntil: now - 20 * DAY, monthlyPrice: 249.9, screenCount: 5, storageUsedBytes: 2.1 * 1024 ** 3 }, 5, 0],
-    ];
-    for (const [id, name, city, data, total, online] of clients) {
-      set(`companies/${id}`, { name, city, screenSeq: total, createdAt: now - 60 * DAY, graceDays: 5, ...data });
-      set(`companies/${id}/members/o-${id}`, { role: 'owner', name: `Dono ${name}`, email: `contato@${id.slice(2)}.com.br` });
-      for (let i = 1; i <= total; i++) {
-        set(`companies/${id}/screens/${id}-s${i}`, { name: `TV ${i}`, code: `VTX-${String(i).padStart(4, '0')}`, lastSeen: i <= online ? now - 30_000 : now - (2 + i) * 60 * MIN, appVersion: '0.3.7' });
-      }
-    }
+    // Base fictícia com 14 meses de história (MRR, faturas, recebimentos, telas): data/seedFinance.js.
+    seedFinance({ set, now });
+    set('mrrEvents/e-demo', { cid: 'demo', name: 'Padaria Boa Massa', type: 'new', from: 0, to: 189.9, delta: 189.9, at: now - 48 * DAY, plan: 'pro' });
   }
   set(`${c}/members/demo-owner`, { role: 'owner', name: 'Cristina Albuquerque', email: 'cristina@boamassa.com.br', joinedAt: now - 40 * 1440 * MIN });
   set(`${c}/members/u-lucas`, { role: 'editor', name: 'Lucas Ferraz', email: 'lucas@boamassa.com.br', joinedAt: now - 12 * 1440 * MIN });
