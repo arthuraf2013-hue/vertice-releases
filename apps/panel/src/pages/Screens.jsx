@@ -51,7 +51,7 @@ export function Screens() {
       <PageHeader overline="OPERAÇÃO" title="Telas" subtitle="Cadastre, organize por grupo e unidade, e configure o que cada TV mostra."
         actions={<>
           <Button icon="eye" onClick={() => setSim('')}>Ver como na tela</Button>
-          {can('admin') && <Button variant="primary" icon="plus" onClick={() => setParam('parear', '1')}>Parear tela</Button>}
+          {can('admin') && <Button variant="primary" icon="plus" data-guide="pair-open" onClick={() => setParam('parear', '1')}>Parear tela</Button>}
         </>} />
       {sim != null && <ScreenSim screenId={sim} onClose={() => setSim(null)} />}
       <Tabs value={tab} onChange={setTab} tabs={[
@@ -76,7 +76,7 @@ export function Screens() {
               ))}
             </div>
           ) : (
-            <Card><EmptyState icon="screen" title="Nenhuma tela nesta seleção" action={can('admin') && <Button variant="primary" icon="plus" onClick={() => setParam('parear', '1')}>Parear tela</Button>}>
+            <Card><EmptyState icon="screen" title="Nenhuma tela nesta seleção" action={can('admin') && <Button variant="primary" icon="plus" data-guide="pair-open" onClick={() => setParam('parear', '1')}>Parear tela</Button>}>
               Instale o player Vértice na TV Box ou Smart TV. Ele mostra um código de 6 caracteres: é só digitar aqui.
             </EmptyState></Card>
           )}
@@ -145,11 +145,11 @@ function PairModal({ open, onClose, onPaired }) {
   return (
     <Modal open={open} onClose={onClose} title="Parear tela" icon="screen" width={600}
       subtitle="Abra o player Vértice na TV. Ele mostra um código de 6 caracteres."
-      footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" onClick={submit} loading={busy} disabled={norm.length < 6}>Conectar tela</Button></>}>
+      footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" data-guide="pair-submit" onClick={submit} loading={busy} disabled={norm.length < 6}>Conectar tela</Button></>}>
       <form onSubmit={submit} className="vx-form">
         <div className="vx-pair-code">
           <label className="vx-label" htmlFor="pair-code">Código da TV</label>
-          <input id="pair-code" className="vx-input vx-input-code" value={norm.length > 3 ? `${norm.slice(0, 3)}-${norm.slice(3)}` : norm}
+          <input id="pair-code" data-guide="pair-code" className="vx-input vx-input-code" value={norm.length > 3 ? `${norm.slice(0, 3)}-${norm.slice(3)}` : norm}
             onChange={(e) => setCode(e.target.value)} placeholder="4F7-K2Q" autoComplete="off" spellCheck={false} inputMode="text" maxLength={7} />
           <div className="vx-help">Não diferencia maiúsculas. O código vale por 30 minutos e a TV gera outro sozinha.</div>
         </div>

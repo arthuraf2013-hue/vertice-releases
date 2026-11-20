@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
+import { SetupGuideProvider } from './SetupGuide.jsx';
 import { ROLE_LABEL } from '@vertice/shared';
 import { useSession } from '../session.jsx';
 import { api, isDemo, desktopConfigFile } from '../data/api.js';
@@ -36,6 +37,7 @@ export function Shell() {
   const [navOpen, setNavOpen] = useState(false);
   useEffect(() => setNavOpen(false), [loc.pathname]);
   return (
+    <SetupGuideProvider>
     <div className="vx-app">
       <nav className={`vx-nav ${navOpen ? 'is-open' : ''}`} aria-label="Principal">
         <div className="vx-nav-brand"><Logo size={36} /></div>
@@ -81,6 +83,7 @@ export function Shell() {
         {company && <MobileDock kinds={kinds} />}
       </div>
     </div>
+    </SetupGuideProvider>
   );
 }
 

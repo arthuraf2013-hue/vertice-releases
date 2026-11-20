@@ -51,7 +51,7 @@ export function Schedules() {
   return (
     <div className="vx-page">
       <PageHeader overline="CONTEÚDO" title="Programação" subtitle="Grades por dia e horário, publicadas para grupos de telas. Fora dos horários, a tela toca a playlist padrão."
-        actions={<><Button icon="eye" onClick={() => setSim(true)}>Ver como na tela</Button>{can('editor') && <Button variant="primary" icon="plus" onClick={() => setEditing({ name: '', priority: 0, groupIds: [], screenIds: [], slots: [{ days: [1, 2, 3, 4, 5], start: '08:00', end: '18:00', playlistId: playlists[0]?.id || '' }] })}>Nova grade</Button>}</>} />
+        actions={<><Button icon="eye" onClick={() => setSim(true)}>Ver como na tela</Button>{can('editor') && <Button variant="primary" icon="plus" data-guide="schedule-new" onClick={() => setEditing({ name: '', priority: 0, groupIds: [], screenIds: [], slots: [{ days: [1, 2, 3, 4, 5], start: '08:00', end: '18:00', playlistId: playlists[0]?.id || '' }] })}>Nova grade</Button>}</>} />
       {sim && <ScreenSim onClose={() => setSim(false)} />}
       <Card pad={false}>
         <Table rows={schedules} onRowClick={can('editor') ? setEditing : undefined}
@@ -73,7 +73,7 @@ export function Schedules() {
               <div className="vx-row vx-row-tight vx-row-end" onClick={(e) => e.stopPropagation()}>
                 {s.status === 'published'
                   ? <Button size="sm" onClick={() => setStatus(s, 'draft')}>Despublicar</Button>
-                  : <Button size="sm" icon="send" onClick={() => setStatus(s, 'published')}>Publicar</Button>}
+                  : <Button size="sm" icon="send" data-guide="schedule-row-publish" onClick={() => setStatus(s, 'published')}>Publicar</Button>}
                 <IconButton icon="trash" label="Excluir" variant="danger" onClick={() => remove(s)} />
               </div>
             ) },
@@ -125,14 +125,14 @@ function ScheduleEditor({ schedule, playlists, groups, screens, onClose, onSaved
         {error && <span className="vx-field-error vx-mr-auto"><Icon name="alert" />{error}</span>}
         <Button onClick={onClose}>Cancelar</Button>
         {schedule.status !== 'published' && <Button onClick={() => save(false)} loading={busy}>Salvar rascunho</Button>}
-        <Button variant="primary" icon="send" onClick={() => save(true)} loading={busy}>{schedule.status === 'published' ? 'Salvar e atualizar telas' : 'Publicar'}</Button>
+        <Button variant="primary" icon="send" data-guide="schedule-publish" onClick={() => save(true)} loading={busy}>{schedule.status === 'published' ? 'Salvar e atualizar telas' : 'Publicar'}</Button>
       </>}>
       <div className="vx-form">
         <div className="vx-form-row">
-          <Input label="Nome da grade" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex.: Grade da semana" />
+          <Input label="Nome da grade" data-guide="schedule-name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex.: Grade da semana" />
           <Select label="Prioridade" value={f.priority} onChange={(e) => setF({ ...f, priority: Number(e.target.value) })} options={PRIORITIES} help="Campanhas com prioridade alta passam na frente da grade normal." />
         </div>
-        <div className="vx-form-row">
+        <div className="vx-form-row" data-guide="schedule-targets">
           <PillGroup label="Grupos de telas" value={f.groupIds} onChange={(groupIds) => setF({ ...f, groupIds })} options={groups.map((g) => ({ value: g.id, label: g.name }))} />
           <PillGroup label="Telas avulsas" value={f.screenIds} onChange={(screenIds) => setF({ ...f, screenIds })} options={screens.map((s) => ({ value: s.id, label: s.name }))} help="Use para uma tela fora dos grupos." />
         </div>

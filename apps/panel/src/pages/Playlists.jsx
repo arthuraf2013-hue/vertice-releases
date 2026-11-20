@@ -35,7 +35,7 @@ export function Playlists() {
   return (
     <div className="vx-page">
       <PageHeader overline="CONTEÚDO" title="Playlists" subtitle="Sequências de mídias com duração e validade. Use as playlists nas grades de programação."
-        actions={can('editor') && <Button variant="primary" icon="plus" onClick={() => setEditing({ name: '', items: [] })}>Nova playlist</Button>} />
+        actions={can('editor') && <Button variant="primary" icon="plus" data-guide="playlist-new" onClick={() => setEditing({ name: '', items: [] })}>Nova playlist</Button>} />
       {playlists.length ? (
         <div className="vx-grid-playlists">
           {playlists.map((p) => {
@@ -68,7 +68,7 @@ export function Playlists() {
           })}
         </div>
       ) : (
-        <Card><EmptyState icon="playlist" title="Nenhuma playlist" action={can('editor') && <Button variant="primary" icon="plus" onClick={() => setEditing({ name: '', items: [] })}>Nova playlist</Button>}>
+        <Card><EmptyState icon="playlist" title="Nenhuma playlist" action={can('editor') && <Button variant="primary" icon="plus" data-guide="playlist-new" onClick={() => setEditing({ name: '', items: [] })}>Nova playlist</Button>}>
           Monte a sequência do que passa na tela: escolha as mídias, a ordem e quanto tempo cada imagem fica.
         </EmptyState></Card>
       )}
@@ -123,14 +123,14 @@ function PlaylistEditor({ playlist, media, mediaById, onClose, onSaved }) {
   return (
     <Modal open onClose={onClose} width={980} icon="playlist" title={playlist.id ? 'Editar playlist' : 'Nova playlist'}
       subtitle={`${items.length} ${items.length === 1 ? 'mídia' : 'mídias'} · ${formatDuration(totalDuration(expanded))} por volta`}
-      footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" onClick={save} loading={busy} disabled={!items.length}>Salvar playlist</Button></>}>
+      footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" data-guide="playlist-save" onClick={save} loading={busy} disabled={!items.length}>Salvar playlist</Button></>}>
       <div className="vx-form">
         <Input label="Nome" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Café da manhã" />
         <div className={`vx-pl-editor ${picker ? 'with-picker' : ''}`}>
           <div>
             <div className="vx-section-head">
               <span className="vx-label">Sequência</span>
-              <Button size="sm" icon={picker ? 'x' : 'plus'} onClick={() => setPicker(!picker)}>{picker ? 'Fechar biblioteca' : 'Adicionar mídias'}</Button>
+              <Button size="sm" icon={picker ? 'x' : 'plus'} data-guide={picker ? undefined : 'playlist-add'} onClick={() => setPicker(!picker)}>{picker ? 'Fechar biblioteca' : 'Adicionar mídias'}</Button>
             </div>
             {items.length ? (
               <ol className="vx-pl-items">
@@ -169,7 +169,7 @@ function PlaylistEditor({ playlist, media, mediaById, onClose, onSaved }) {
           {picker && (
             <aside className="vx-pl-picker">
               <div className="vx-search"><Icon name="search" /><input className="vx-input" placeholder="Buscar na biblioteca" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-              <div className="vx-pl-picker-grid">
+              <div className="vx-pl-picker-grid" data-guide="playlist-pick">
                 {media.filter((m) => m.name.toLowerCase().includes(q.toLowerCase())).map((m) => (
                   <button key={m.id} type="button" className="vx-pl-pick" onClick={() => add(m)} title={`Adicionar ${m.name}`}>
                     <MediaThumb media={m} />

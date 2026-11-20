@@ -116,7 +116,7 @@ export function Downloads() {
   return (
     <div className="vx-page">
       <PageHeader overline="GESTÃO" title="Downloads" subtitle="Instale o player nas TVs. Depois é só digitar o código da tela em Telas › Parear tela." />
-      <div className="vx-grid-3">
+      <div className="vx-grid-3" data-guide="player-options">
         <Card title="TV Box e Smart TV Android" icon="android">
           <ol className="vx-steps">
             <li>Na TV Box, abra o navegador e baixe o APK (ou copie para um pendrive).</li>

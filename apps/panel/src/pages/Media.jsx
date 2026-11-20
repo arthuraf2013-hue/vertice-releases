@@ -261,7 +261,7 @@ export function Media() {
     <div className="vx-page" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={(e) => e.currentTarget === e.target && setDrag(false)}
       onDrop={(e) => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}>
       <PageHeader overline="CONTEÚDO" title="Mídias" subtitle="Imagens, vídeos e PDF (cada página vira uma imagem). As TVs baixam só o que está na programação delas."
-        actions={can('editor') && <Button variant="primary" icon="upload" onClick={() => inputRef.current?.click()}>Enviar mídias</Button>} />
+        actions={can('editor') && <Button variant="primary" icon="upload" data-guide="media-upload" onClick={() => inputRef.current?.click()}>Enviar mídias</Button>} />
       <input ref={inputRef} type="file" multiple accept={PICK} hidden onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} />
 
       <Card className="vx-storage">
@@ -345,7 +345,7 @@ export function Media() {
       ) : (
         <Card>
           <EmptyState icon="image" title={media.length ? 'Nada encontrado' : 'Sua biblioteca está vazia'}
-            action={can('editor') && !media.length && <Button variant="primary" icon="upload" onClick={() => inputRef.current?.click()}>Enviar mídias</Button>}>
+            action={can('editor') && !media.length && <Button variant="primary" icon="upload" data-guide="media-upload" onClick={() => inputRef.current?.click()}>Enviar mídias</Button>}>
             {media.length ? 'Tente outro nome ou filtro.' : 'Arraste imagens e vídeos para cá. Recomendado: 1920×1080 (horizontal) ou 1080×1920 (vertical), MP4 H.264.'}
           </EmptyState>
         </Card>
