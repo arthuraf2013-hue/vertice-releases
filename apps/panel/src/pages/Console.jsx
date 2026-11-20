@@ -123,7 +123,7 @@ function ClientModal({ company: c, onClose, settings }) {
   const payments = useCol(`${base}/payments`, { orderBy: ['paidAt', 'desc'], limit: 24 });
   const [f, setF] = useState(() => ({
     name: c.name || '', city: c.city || '', phone: c.phone || '', ownerEmail: c.ownerEmail || '', notes: c.notes || '',
-    plan: c.plan || 'start', screenLimit: String(c.screenLimit || PLANS.start.screens), storageGB: String(Math.round((c.storageQuotaMB || 2048) / 1024)),
+    plan: c.plan || 'start', screenLimit: String(c.screenLimit || PLANS.start.screens), storageGB: String(Math.round((c.storageQuotaMB || PLANS.start.storageMB) / 1024)),
     monthlyPrice: c.monthlyPrice ? String(c.monthlyPrice).replace('.', ',') : '', status: c.status || 'active',
     trialEndsAt: toInput(c.trialEndsAt), paidUntil: toInput(c.paidUntil), graceDays: String(c.graceDays ?? settings.graceDays ?? DEFAULT_GRACE_DAYS),
   }));

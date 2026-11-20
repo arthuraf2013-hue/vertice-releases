@@ -120,7 +120,7 @@ service cloud.firestore {
         && request.resource.data.ownerUid == uid()
         && request.resource.data.plan == 'start'
         && request.resource.data.screenLimit == 3
-        && request.resource.data.storageQuotaMB == 2048
+        && request.resource.data.storageQuotaMB == 1024
         && request.resource.data.storageUsedBytes == 0
         && request.resource.data.screenSeq == 0
         && request.resource.data.screenCount == 0

@@ -11,7 +11,7 @@ As atualizações do painel e do player não passam por esse servidor: elas vêm
 
 - **VPS Linux** com **Ubuntu 24.04** (ou 22.04, ou Debian 12), em qualquer provedor.
 - **1 vCPU e 1 GB de RAM** dão conta de começar. O que pesa é o **disco**: some a cota de mídias dos planos
-  vendidos (Start 2 GB, Pro 10 GB, Rede 50 GB) e deixe folga.
+  vendidos (Start 1 GB, Pro 10 GB, Rede 50 GB) e deixe folga.
 - **Backup ou snapshot automático** do provedor, se houver. As mídias dos clientes ficam em
   `/var/lib/vertice/midias`.
 - **Portas 80 e 443 liberadas**, se o provedor tiver firewall no painel dele.

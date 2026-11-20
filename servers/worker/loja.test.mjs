@@ -39,7 +39,7 @@ await new Promise((r) => server.once('listening', r));
 
 // Empresas: a madrinha (s1) e a indicada (c1), cujo dono compra o plano anual.
 await db.doc('companies/s1').set({ name: 'Madrinha', paidUntil: Timestamp.fromMillis(now + 10 * DAY) });
-await db.doc('companies/c1').set({ name: 'Padaria', status: 'trial', referredBy: referralCode('s1'), storageQuotaMB: 2048 });
+await db.doc('companies/c1').set({ name: 'Padaria', status: 'trial', referredBy: referralCode('s1'), storageQuotaMB: 1024 });
 await db.doc('platform/store').set({ items: [
   { id: 'anual', kind: 'months', name: 'Plano anual', price: 1078.8, promoPrice: 958.8, months: 12 },
   { id: 'espaco', kind: 'storage', name: '+5 GB', price: 49.9, storageMB: 5120 },
@@ -95,7 +95,7 @@ assert.equal((await db.doc('companies/s1').get()).data().referralRewards, 1);
 const r2 = await buy(owner, { itemId: 'espaco', cpfCnpj: '52998224725', name: 'Padaria' });
 const o2 = (await r2.json()).orderId;
 await hook('PAYMENT_CONFIRMED', `c1/${o2}`);
-assert.equal((await db.doc('companies/c1').get()).data().storageQuotaMB, 2048 + 5120);
+assert.equal((await db.doc('companies/c1').get()).data().storageQuotaMB, 1024 + 5120);
 
 server.close();
 asaas.close();

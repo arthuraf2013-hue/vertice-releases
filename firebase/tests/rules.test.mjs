@@ -28,7 +28,7 @@ const anon = () => env.unauthenticatedContext().firestore();
 async function seedCompany() {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'companies', CID), { name: 'Acme', ownerUid: 'owner', plan: 'start', screenLimit: 3, storageQuotaMB: 2048, storageUsedBytes: 0, screenSeq: 0 });
+    await setDoc(doc(db, 'companies', CID), { name: 'Acme', ownerUid: 'owner', plan: 'start', screenLimit: 3, storageQuotaMB: 1024, storageUsedBytes: 0, screenSeq: 0 });
     await setDoc(doc(db, `companies/${CID}/members/owner`), { role: 'owner' });
     await setDoc(doc(db, `companies/${CID}/members/editor`), { role: 'editor' });
     await setDoc(doc(db, `companies/${CID}/members/viewer`), { role: 'viewer' });
@@ -55,7 +55,7 @@ async function claim(db, code, kind, extra = {}) {
 }
 const DAY = 24 * 60 * MIN;
 const trialCompany = (ownerUid, days = 14) => ({
-  name: 'Loja', ownerUid, plan: 'start', screenLimit: 3, storageQuotaMB: 2048, storageUsedBytes: 0, screenSeq: 0, screenCount: 0,
+  name: 'Loja', ownerUid, plan: 'start', screenLimit: 3, storageQuotaMB: 1024, storageUsedBytes: 0, screenSeq: 0, screenCount: 0,
   status: 'trial', trialEndsAt: Timestamp.fromMillis(Date.now() + days * DAY), createdAt: serverTimestamp(),
 });
 const pairingDoc = (uid, code, kind = 'screen', ttl = 30 * MIN) => ({

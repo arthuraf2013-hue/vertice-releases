@@ -49,8 +49,8 @@ export function seedDemo({ set }) {
     set('platformAdmins/demo-owner', { name: 'Vetta Sistemas' });
     const clients = [
       ['c-mercado', 'Mercado Bom Preço', 'Olinda', { plan: 'rede', screenLimit: 100, storageQuotaMB: 51200, status: 'active', paidUntil: now + 21 * DAY, monthlyPrice: 1490, screenCount: 32, storageUsedBytes: 18.2 * 1024 ** 3 }, 32, 30],
-      ['c-farma', 'Farmácia Vida', 'Recife', { plan: 'start', screenLimit: 3, storageQuotaMB: 2048, status: 'trial', trialEndsAt: now + 2 * DAY, screenCount: 2, storageUsedBytes: 0.3 * 1024 ** 3, source: 'cadastro' }, 2, 2],
-      ['c-acai', 'Açaí da Praça', 'Jaboatão', { plan: 'start', screenLimit: 3, storageQuotaMB: 2048, status: 'active', paidUntil: now - 3 * DAY, monthlyPrice: 89.9, screenCount: 3, storageUsedBytes: 0.9 * 1024 ** 3 }, 3, 1],
+      ['c-farma', 'Farmácia Vida', 'Recife', { plan: 'start', screenLimit: 3, storageQuotaMB: 1024, status: 'trial', trialEndsAt: now + 2 * DAY, screenCount: 2, storageUsedBytes: 0.3 * 1024 ** 3, source: 'cadastro' }, 2, 2],
+      ['c-acai', 'Açaí da Praça', 'Jaboatão', { plan: 'start', screenLimit: 3, storageQuotaMB: 1024, status: 'active', paidUntil: now - 3 * DAY, monthlyPrice: 89.9, screenCount: 3, storageUsedBytes: 0.9 * 1024 ** 3 }, 3, 1],
       ['c-otica', 'Ótica Visão', 'Paulista', { plan: 'pro', screenLimit: 15, storageQuotaMB: 10240, status: 'suspended', paidUntil: now - 20 * DAY, monthlyPrice: 249.9, screenCount: 5, storageUsedBytes: 2.1 * 1024 ** 3 }, 5, 0],
     ];
     for (const [id, name, city, data, total, online] of clients) {

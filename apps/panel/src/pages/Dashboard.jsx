@@ -2,27 +2,35 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   networkSummary, screenStatus, greeting, formatBytes, boardOrders, formatOrderNumber,
-  formatCustomerName, timeAgo,
+  formatCustomerName, timeAgo, setupSteps,
 } from '@vertice/shared';
 import { useSession, useUnitFilter } from '../session.jsx';
 import { useCol, useNow, useById } from '../data/hooks.js';
 import { Card, MetricCard, NetworkHealth, DeviceCard, TextLink, Loading, StatusBadge, EmptyState, Button } from '../ui/kit.jsx';
 import { Icon } from '../ui/Icon.jsx';
+import { SetupGuide, SetupCard, useSetupGuide } from '../ui/SetupGuide.jsx';
 
 export function Dashboard() {
-  const { base, company, member, user, units } = useSession();
+  const { base, company, companyId, member, user, units, can } = useSession();
   const now = useNow();
   const nav = useNavigate();
   const allScreens = useCol(`${base}/screens`);
   const screens = useUnitFilter(allScreens);
   const media = useCol(`${base}/media`);
   const schedules = useCol(`${base}/schedules`);
+  const playlists = useCol(`${base}/playlists`);
   const integrations = useCol(`${base}/integrations`);
   const orders = useCol(`${base}/orders`, { where: [['status', 'in', ['preparing', 'ready']]] });
   const mediaById = useById(media);
   const unitById = useById(units);
 
   const summary = useMemo(() => networkSummary(screens || [], now), [screens, now]);
+  // Guia da primeira tela: conta a rede inteira, não só a unidade escolhida no filtro.
+  const setup = useMemo(
+    () => (allScreens && media && playlists && schedules ? setupSteps({ screens: allScreens, media, playlists, schedules }) : null),
+    [allScreens, media, playlists, schedules],
+  );
+  const guide = useSetupGuide(companyId, setup, can('admin'));
   if (!allScreens || !media || !schedules) return <Loading />;
 
   const firstName = (member?.name || user?.name || '').split(' ')[0];
@@ -56,7 +64,13 @@ export function Dashboard() {
           <h1 className="vx-display">{greeting(new Date(now))}, {firstName}.</h1>
           <p className="vx-page-sub">Sua rede de telas, organizada para o dia a dia.</p>
         </div>
+        {can('admin') && setup && (guide.hidden || setup.complete) && (
+          <Button variant="ghost" icon="question" onClick={guide.show}>Guia da primeira tela</Button>
+        )}
       </header>
+
+      {can('admin') && !guide.hidden && <SetupCard progress={setup} onOpen={() => guide.setOpen(true)} onHide={guide.hide} />}
+      <SetupGuide open={guide.open} onClose={() => guide.setOpen(false)} onHide={guide.hide} progress={setup} />
 
       <div className="vx-grid-4">
         <MetricCard icon="screen" label="Telas online" value={summary.healthy} total={summary.total} bar={summary.healthyPct}

@@ -6,7 +6,7 @@
   mensalidade e começo (teste ou já contratado) e convida o dono pelo e-mail. O dono abre o painel, toca em
   **Criar conta** com esse e-mail e cai direto na empresa. Se ele já tinha conta, usa **Procurar convite**.
 - **Pelo site (cadastro aberto):** o botão *Testar grátis* do site abre o painel em *Criar conta*. A empresa
-  nasce no **Start** (3 telas, 2 GB), em **teste grátis** pelo número de dias da configuração (padrão 14).
+  nasce no **Start** (3 telas, 1 GB), em **teste grátis** pelo número de dias da configuração (padrão 14).
   A Vetta pode fechar o cadastro em **Clientes › Configurações**; fechado, só entra quem tiver convite.
 
 ## Licença

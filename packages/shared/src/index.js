@@ -19,3 +19,4 @@ export * from './extras.js';
 export * from './more.js';
 export * from './presets.js';
 export * from './survey.js';
+export * from './setup.js';

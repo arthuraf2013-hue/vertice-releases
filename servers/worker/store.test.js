@@ -23,7 +23,7 @@ test('efeito do pedido: meses renovam e ativam; espaço soma; serviço não mexe
   const e = storeEffect({ kind: 'months', months: 6 }, { status: 'trial' }, now);
   assert.equal(e.status, 'active');
   assert.ok(e.paidUntil > now + 150 * 86_400_000);
-  assert.deepEqual(storeEffect({ kind: 'storage', storageMB: 5120 }, { storageQuotaMB: 2048 }), { storageQuotaMB: 7168 });
+  assert.deepEqual(storeEffect({ kind: 'storage', storageMB: 5120 }, { storageQuotaMB: 1024 }), { storageQuotaMB: 6144 });
   assert.deepEqual(storeEffect({ kind: 'service' }, {}), {});
 });
 
